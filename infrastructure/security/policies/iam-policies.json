@@ -1,0 +1,570 @@
+{
+  "policies": [
+    {
+      "name": "EcsTaskExecutionPolicy",
+      "description": "Policy for ECS task execution role allowing pulling container images and writing logs",
+      "version": "2012-10-17",
+      "statement": [
+        {
+          "effect": "Allow",
+          "action": [
+            "ecr:GetAuthorizationToken",
+            "ecr:BatchCheckLayerAvailability",
+            "ecr:GetDownloadUrlForLayer",
+            "ecr:BatchGetImage"
+          ],
+          "resource": "*"
+        },
+        {
+          "effect": "Allow",
+          "action": [
+            "logs:CreateLogStream",
+            "logs:PutLogEvents"
+          ],
+          "resource": "arn:aws:logs:${region}:${account_id}:log-group:/ecs/${environment}*:*"
+        },
+        {
+          "effect": "Allow",
+          "action": [
+            "ssm:GetParameters",
+            "secretsmanager:GetSecretValue",
+            "kms:Decrypt"
+          ],
+          "resource": [
+            "arn:aws:ssm:${region}:${account_id}:parameter/${environment}/*",
+            "arn:aws:secretsmanager:${region}:${account_id}:secret:${environment}/*",
+            "arn:aws:kms:${region}:${account_id}:key/${kms_key_id}"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "EcsTaskRolePolicy",
+      "description": "Policy for ECS task role allowing application-specific permissions",
+      "version": "2012-10-17",
+      "statement": [
+        {
+          "effect": "Allow",
+          "action": [
+            "s3:GetObject",
+            "s3:PutObject",
+            "s3:ListBucket",
+            "s3:DeleteObject"
+          ],
+          "resource": [
+            "arn:aws:s3:::${document_bucket_name}",
+            "arn:aws:s3:::${document_bucket_name}/*",
+            "arn:aws:s3:::${assets_bucket_name}",
+            "arn:aws:s3:::${assets_bucket_name}/*"
+          ]
+        },
+        {
+          "effect": "Allow",
+          "action": [
+            "dynamodb:GetItem",
+            "dynamodb:PutItem",
+            "dynamodb:UpdateItem",
+            "dynamodb:DeleteItem",
+            "dynamodb:Query",
+            "dynamodb:Scan",
+            "dynamodb:BatchGetItem",
+            "dynamodb:BatchWriteItem"
+          ],
+          "resource": "arn:aws:dynamodb:${region}:${account_id}:table/${environment}*"
+        },
+        {
+          "effect": "Allow",
+          "action": [
+            "sqs:SendMessage",
+            "sqs:ReceiveMessage",
+            "sqs:DeleteMessage",
+            "sqs:GetQueueAttributes"
+          ],
+          "resource": "arn:aws:sqs:${region}:${account_id}:${environment}*"
+        },
+        {
+          "effect": "Allow",
+          "action": [
+            "kms:Decrypt",
+            "kms:GenerateDataKey"
+          ],
+          "resource": "arn:aws:kms:${region}:${account_id}:key/${kms_key_id}"
+        }
+      ]
+    },
+    {
+      "name": "LambdaExecutionPolicy",
+      "description": "Policy for Lambda execution role allowing function execution and logging",
+      "version": "2012-10-17",
+      "statement": [
+        {
+          "effect": "Allow",
+          "action": [
+            "logs:CreateLogGroup",
+            "logs:CreateLogStream",
+            "logs:PutLogEvents"
+          ],
+          "resource": "arn:aws:logs:${region}:${account_id}:log-group:/aws/lambda/${environment}*:*"
+        },
+        {
+          "effect": "Allow",
+          "action": [
+            "s3:GetObject",
+            "s3:PutObject"
+          ],
+          "resource": [
+            "arn:aws:s3:::${document_bucket_name}/*",
+            "arn:aws:s3:::${assets_bucket_name}/*"
+          ]
+        },
+        {
+          "effect": "Allow",
+          "action": [
+            "ssm:GetParameter",
+            "ssm:GetParameters",
+            "secretsmanager:GetSecretValue"
+          ],
+          "resource": [
+            "arn:aws:ssm:${region}:${account_id}:parameter/${environment}/*",
+            "arn:aws:secretsmanager:${region}:${account_id}:secret:${environment}/*"
+          ]
+        },
+        {
+          "effect": "Allow",
+          "action": [
+            "kms:Decrypt"
+          ],
+          "resource": "arn:aws:kms:${region}:${account_id}:key/${kms_key_id}"
+        }
+      ]
+    },
+    {
+      "name": "DocumentProcessingPolicy",
+      "description": "Policy for document processing services with AI integration permissions",
+      "version": "2012-10-17",
+      "statement": [
+        {
+          "effect": "Allow",
+          "action": [
+            "s3:GetObject",
+            "s3:PutObject",
+            "s3:ListBucket"
+          ],
+          "resource": [
+            "arn:aws:s3:::${document_bucket_name}",
+            "arn:aws:s3:::${document_bucket_name}/*"
+          ]
+        },
+        {
+          "effect": "Allow",
+          "action": [
+            "textract:AnalyzeDocument",
+            "textract:DetectDocumentText",
+            "textract:StartDocumentAnalysis",
+            "textract:GetDocumentAnalysis"
+          ],
+          "resource": "*"
+        },
+        {
+          "effect": "Allow",
+          "action": [
+            "comprehendmedical:DetectEntitiesV2",
+            "comprehendmedical:InferICD10CM",
+            "comprehendmedical:InferRxNorm"
+          ],
+          "resource": "*"
+        },
+        {
+          "effect": "Allow",
+          "action": [
+            "dynamodb:PutItem",
+            "dynamodb:GetItem",
+            "dynamodb:UpdateItem"
+          ],
+          "resource": "arn:aws:dynamodb:${region}:${account_id}:table/${environment}-document-analysis"
+        },
+        {
+          "effect": "Allow",
+          "action": [
+            "kms:Decrypt",
+            "kms:GenerateDataKey"
+          ],
+          "resource": "arn:aws:kms:${region}:${account_id}:key/${kms_key_id}"
+        }
+      ]
+    },
+    {
+      "name": "DatabaseAccessPolicy",
+      "description": "Policy for services requiring database access",
+      "version": "2012-10-17",
+      "statement": [
+        {
+          "effect": "Allow",
+          "action": [
+            "rds-db:connect"
+          ],
+          "resource": "arn:aws:rds-db:${region}:${account_id}:dbuser:${rds_resource_id}/${database_username}"
+        },
+        {
+          "effect": "Allow",
+          "action": [
+            "secretsmanager:GetSecretValue"
+          ],
+          "resource": "arn:aws:secretsmanager:${region}:${account_id}:secret:${environment}/database-*"
+        },
+        {
+          "effect": "Allow",
+          "action": [
+            "kms:Decrypt"
+          ],
+          "resource": "arn:aws:kms:${region}:${account_id}:key/${kms_key_id}"
+        }
+      ]
+    },
+    {
+      "name": "CloudWatchEventsPolicy",
+      "description": "Policy for CloudWatch Events role to trigger scheduled tasks",
+      "version": "2012-10-17",
+      "statement": [
+        {
+          "effect": "Allow",
+          "action": [
+            "events:PutRule",
+            "events:PutTargets",
+            "events:DescribeRule",
+            "events:DeleteRule",
+            "events:RemoveTargets"
+          ],
+          "resource": "arn:aws:events:${region}:${account_id}:rule/${environment}*"
+        },
+        {
+          "effect": "Allow",
+          "action": [
+            "lambda:InvokeFunction"
+          ],
+          "resource": "arn:aws:lambda:${region}:${account_id}:function:${environment}*"
+        },
+        {
+          "effect": "Allow",
+          "action": [
+            "ecs:RunTask"
+          ],
+          "resource": "arn:aws:ecs:${region}:${account_id}:task-definition/${environment}*"
+        },
+        {
+          "effect": "Allow",
+          "action": [
+            "iam:PassRole"
+          ],
+          "resource": [
+            "arn:aws:iam::${account_id}:role/${environment}-ecs-task-execution",
+            "arn:aws:iam::${account_id}:role/${environment}-ecs-task"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "NotificationServicePolicy",
+      "description": "Policy for notification services to send emails and SMS",
+      "version": "2012-10-17",
+      "statement": [
+        {
+          "effect": "Allow",
+          "action": [
+            "ses:SendEmail",
+            "ses:SendRawEmail",
+            "ses:SendTemplatedEmail"
+          ],
+          "resource": "*",
+          "condition": {
+            "StringEquals": {
+              "ses:FromAddress": [
+                "notifications@revolucare.com",
+                "support@revolucare.com",
+                "no-reply@revolucare.com"
+              ]
+            }
+          }
+        },
+        {
+          "effect": "Allow",
+          "action": [
+            "sns:Publish"
+          ],
+          "resource": "arn:aws:sns:${region}:${account_id}:${environment}-notifications"
+        },
+        {
+          "effect": "Allow",
+          "action": [
+            "mobiletargeting:SendMessages",
+            "mobiletargeting:SendUsersMessages"
+          ],
+          "resource": "arn:aws:mobiletargeting:${region}:${account_id}:apps/*"
+        },
+        {
+          "effect": "Allow",
+          "action": [
+            "kms:Decrypt",
+            "kms:GenerateDataKey"
+          ],
+          "resource": "arn:aws:kms:${region}:${account_id}:key/${kms_key_id}"
+        }
+      ]
+    },
+    {
+      "name": "BackupPolicy",
+      "description": "Policy for backup and recovery operations",
+      "version": "2012-10-17",
+      "statement": [
+        {
+          "effect": "Allow",
+          "action": [
+            "backup:StartBackupJob",
+            "backup:DescribeBackupJob",
+            "backup:StopBackupJob"
+          ],
+          "resource": "*"
+        },
+        {
+          "effect": "Allow",
+          "action": [
+            "backup:CreateBackupPlan",
+            "backup:CreateBackupSelection"
+          ],
+          "resource": "*"
+        },
+        {
+          "effect": "Allow",
+          "action": [
+            "rds:DescribeDBInstances",
+            "rds:CreateDBSnapshot",
+            "rds:DescribeDBSnapshots",
+            "rds:CopyDBSnapshot",
+            "rds:DeleteDBSnapshot"
+          ],
+          "resource": "arn:aws:rds:${region}:${account_id}:db:${environment}*"
+        },
+        {
+          "effect": "Allow",
+          "action": [
+            "s3:GetObject",
+            "s3:PutObject",
+            "s3:ListBucket"
+          ],
+          "resource": [
+            "arn:aws:s3:::${backup_bucket_name}",
+            "arn:aws:s3:::${backup_bucket_name}/*"
+          ]
+        },
+        {
+          "effect": "Allow",
+          "action": [
+            "kms:Encrypt",
+            "kms:Decrypt",
+            "kms:GenerateDataKey"
+          ],
+          "resource": "arn:aws:kms:${region}:${account_id}:key/${kms_key_id}"
+        }
+      ]
+    },
+    {
+      "name": "MonitoringPolicy",
+      "description": "Policy for monitoring and alerting services",
+      "version": "2012-10-17",
+      "statement": [
+        {
+          "effect": "Allow",
+          "action": [
+            "cloudwatch:PutMetricData",
+            "cloudwatch:GetMetricData",
+            "cloudwatch:GetMetricStatistics",
+            "cloudwatch:ListMetrics"
+          ],
+          "resource": "*"
+        },
+        {
+          "effect": "Allow",
+          "action": [
+            "cloudwatch:PutMetricAlarm",
+            "cloudwatch:DescribeAlarms",
+            "cloudwatch:DeleteAlarms",
+            "cloudwatch:GetDashboard",
+            "cloudwatch:PutDashboard"
+          ],
+          "resource": [
+            "arn:aws:cloudwatch:${region}:${account_id}:alarm:${environment}*",
+            "arn:aws:cloudwatch:${region}:${account_id}:dashboard/${environment}*"
+          ]
+        },
+        {
+          "effect": "Allow",
+          "action": [
+            "logs:DescribeLogGroups",
+            "logs:DescribeLogStreams",
+            "logs:GetLogEvents",
+            "logs:FilterLogEvents"
+          ],
+          "resource": "arn:aws:logs:${region}:${account_id}:log-group:*"
+        },
+        {
+          "effect": "Allow",
+          "action": [
+            "sns:Publish"
+          ],
+          "resource": "arn:aws:sns:${region}:${account_id}:${environment}-alerts"
+        }
+      ]
+    },
+    {
+      "name": "CalendarIntegrationPolicy",
+      "description": "Policy for calendar integration services",
+      "version": "2012-10-17",
+      "statement": [
+        {
+          "effect": "Allow",
+          "action": [
+            "dynamodb:GetItem",
+            "dynamodb:PutItem",
+            "dynamodb:UpdateItem",
+            "dynamodb:Query"
+          ],
+          "resource": [
+            "arn:aws:dynamodb:${region}:${account_id}:table/${environment}-provider-availability",
+            "arn:aws:dynamodb:${region}:${account_id}:table/${environment}-bookings"
+          ]
+        },
+        {
+          "effect": "Allow",
+          "action": [
+            "secretsmanager:GetSecretValue"
+          ],
+          "resource": "arn:aws:secretsmanager:${region}:${account_id}:secret:${environment}/calendar-*"
+        },
+        {
+          "effect": "Allow",
+          "action": [
+            "kms:Decrypt"
+          ],
+          "resource": "arn:aws:kms:${region}:${account_id}:key/${kms_key_id}"
+        },
+        {
+          "effect": "Allow",
+          "action": [
+            "sns:Publish"
+          ],
+          "resource": "arn:aws:sns:${region}:${account_id}:${environment}-calendar-notifications"
+        }
+      ]
+    },
+    {
+      "name": "PaymentProcessingPolicy",
+      "description": "Policy for payment processing services",
+      "version": "2012-10-17",
+      "statement": [
+        {
+          "effect": "Allow",
+          "action": [
+            "dynamodb:GetItem",
+            "dynamodb:PutItem",
+            "dynamodb:UpdateItem",
+            "dynamodb:Query"
+          ],
+          "resource": [
+            "arn:aws:dynamodb:${region}:${account_id}:table/${environment}-payments",
+            "arn:aws:dynamodb:${region}:${account_id}:table/${environment}-invoices"
+          ]
+        },
+        {
+          "effect": "Allow",
+          "action": [
+            "secretsmanager:GetSecretValue"
+          ],
+          "resource": "arn:aws:secretsmanager:${region}:${account_id}:secret:${environment}/payment-*"
+        },
+        {
+          "effect": "Allow",
+          "action": [
+            "kms:Decrypt",
+            "kms:GenerateDataKey"
+          ],
+          "resource": "arn:aws:kms:${region}:${account_id}:key/${kms_key_id}"
+        },
+        {
+          "effect": "Allow",
+          "action": [
+            "sns:Publish"
+          ],
+          "resource": "arn:aws:sns:${region}:${account_id}:${environment}-payment-notifications"
+        }
+      ]
+    },
+    {
+      "name": "BoundaryPolicy",
+      "description": "Permission boundary policy to limit maximum permissions for all roles",
+      "version": "2012-10-17",
+      "statement": [
+        {
+          "effect": "Allow",
+          "action": [
+            "s3:*",
+            "rds:*",
+            "dynamodb:*",
+            "lambda:*",
+            "ecs:*",
+            "ec2:Describe*",
+            "elasticache:*",
+            "cloudwatch:*",
+            "logs:*",
+            "sns:*",
+            "sqs:*",
+            "kms:*",
+            "secretsmanager:*",
+            "ssm:*"
+          ],
+          "resource": "*",
+          "condition": {
+            "StringEquals": {
+              "aws:RequestedRegion": "${region}"
+            },
+            "StringLike": {
+              "aws:ResourceTag/Environment": "${environment}"
+            }
+          }
+        },
+        {
+          "effect": "Deny",
+          "action": [
+            "iam:CreateUser",
+            "iam:CreateRole",
+            "iam:DeleteRole",
+            "iam:AttachRolePolicy",
+            "iam:DetachRolePolicy",
+            "organizations:*",
+            "account:*"
+          ],
+          "resource": "*"
+        },
+        {
+          "effect": "Deny",
+          "action": [
+            "kms:Delete*",
+            "kms:Disable*",
+            "kms:Schedule*"
+          ],
+          "resource": "*"
+        },
+        {
+          "effect": "Deny",
+          "action": [
+            "s3:DeleteBucket"
+          ],
+          "resource": [
+            "arn:aws:s3:::${document_bucket_name}",
+            "arn:aws:s3:::${assets_bucket_name}",
+            "arn:aws:s3:::${backup_bucket_name}"
+          ]
+        }
+      ]
+    }
+  ]
+}
