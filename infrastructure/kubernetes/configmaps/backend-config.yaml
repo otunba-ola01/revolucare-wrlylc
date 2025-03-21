@@ -1,0 +1,114 @@
+# Backend configuration ConfigMap for Revolucare
+# Contains non-sensitive configuration settings for the backend service
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: revolucare
+  labels:
+    app: revolucare
+    component: backend
+    part-of: revolucare-platform
+    managed-by: kubernetes
+  annotations:
+    kubernetes.io/description: "Non-sensitive configuration for Revolucare backend service"
+data:
+  # Core application configuration settings
+  NODE_ENV: "production"
+  PORT: "3000"
+  API_URL: "https://api.revolucare.com"
+  FRONTEND_URL: "https://revolucare.com"
+  LOG_LEVEL: "info"
+  LOG_FORMAT: "json"
+
+  # PostgreSQL database connection settings (non-sensitive)
+  DATABASE_HOST: "revolucare-postgresql.revolucare.svc.cluster.local"
+  DATABASE_PORT: "5432"
+  DATABASE_NAME: "revolucare"
+  DATABASE_USER: "revolucare_app"
+  DATABASE_SSL: "true"
+  DATABASE_POOL_MIN: "5"
+  DATABASE_POOL_MAX: "50"
+  DATABASE_POOL_IDLE_TIMEOUT: "600000"
+  DATABASE_STATEMENT_TIMEOUT: "30000"
+  DATABASE_LOG_SLOW_QUERIES: "true"
+
+  # Redis cache connection settings (non-sensitive)
+  REDIS_HOST: "revolucare-redis.revolucare.svc.cluster.local"
+  REDIS_PORT: "6379"
+  REDIS_DB: "0"
+  REDIS_TLS: "true"
+  REDIS_CONNECT_TIMEOUT: "10000"
+  REDIS_MAX_RETRIES: "10"
+  REDIS_TTL: "3600"
+  REDIS_KEY_PREFIX: "revolucare:"
+
+  # AI service configuration (non-sensitive)
+  AI_MODEL_GPT4: "gpt-4"
+  AI_MODEL_GPT35: "gpt-3.5-turbo"
+  AZURE_FORM_RECOGNIZER_ENDPOINT: "https://revolucare-form-recognizer.cognitiveservices.azure.com/"
+
+  # Email service configuration (non-sensitive)
+  EMAIL_FROM: "noreply@revolucare.com"
+  EMAIL_FROM_NAME: "Revolucare Support"
+  EMAIL_TEMPLATE_WELCOME: "d-welcome-template-id"
+  EMAIL_TEMPLATE_PASSWORD_RESET: "d-password-reset-template-id"
+  EMAIL_TEMPLATE_VERIFICATION: "d-verification-template-id"
+  EMAIL_TEMPLATE_APPOINTMENT_CONFIRMATION: "d-appointment-confirmation-template-id"
+
+  # SMS service configuration (non-sensitive)
+  TWILIO_PHONE_NUMBER: "+15551234567"
+  SMS_ENABLED: "true"
+
+  # Document storage configuration (non-sensitive)
+  STORAGE_CONTAINER_NAME: "revolucare-documents"
+  MAX_FILE_SIZE_MB: "25"
+  SIGNED_URL_EXPIRATION_MINUTES: "60"
+
+  # Calendar integration configuration (non-sensitive)
+  GOOGLE_CALENDAR_CLIENT_ID: "revolucare-google-client-id.apps.googleusercontent.com"
+  GOOGLE_CALENDAR_REDIRECT_URI: "https://api.revolucare.com/api/auth/google/callback"
+  MICROSOFT_GRAPH_CLIENT_ID: "revolucare-microsoft-client-id"
+  MICROSOFT_GRAPH_REDIRECT_URI: "https://api.revolucare.com/api/auth/microsoft/callback"
+  CALENDAR_API_TIMEOUT: "30000"
+
+  # API rate limiting configuration
+  RATE_LIMIT_WINDOW: "60000"
+  RATE_LIMIT_MAX: "100"
+  RATE_LIMIT_STANDARD_WINDOW: "60000"
+  RATE_LIMIT_STANDARD_MAX: "300"
+
+  # Cross-Origin Resource Sharing configuration
+  CORS_ALLOWED_ORIGINS: "https://revolucare.com,https://admin.revolucare.com"
+  CORS_ALLOWED_METHODS: "GET,POST,PUT,DELETE,PATCH,OPTIONS"
+  CORS_ALLOWED_HEADERS: "Content-Type,Authorization,X-Requested-With"
+  CORS_EXPOSED_HEADERS: "Content-Range,X-Total-Count"
+  CORS_MAX_AGE: "86400"
+
+  # WebSocket server configuration
+  WEBSOCKET_ENABLED: "true"
+  WEBSOCKET_PORT: "3001"
+  WEBSOCKET_PATH: "/ws"
+
+  # Monitoring and health check configuration
+  METRICS_ENABLED: "true"
+  METRICS_PATH: "/api/metrics"
+  HEALTH_CHECK_PATH: "/api/health"
+  HEALTH_CHECK_DETAILED_PATH: "/api/health/detailed"
+
+  # Service-specific configuration
+  DOCUMENT_ANALYSIS_BATCH_SIZE: "5"
+  DOCUMENT_ANALYSIS_TIMEOUT: "300000"
+  CARE_PLAN_GENERATION_TIMEOUT: "60000"
+  CARE_PLAN_MAX_OPTIONS: "3"
+  PROVIDER_MATCHING_TIMEOUT: "30000"
+  PROVIDER_MATCHING_MAX_RESULTS: "10"
+  NOTIFICATION_BATCH_SIZE: "100"
+  NOTIFICATION_PROCESSING_INTERVAL: "60000"
+
+  # Feature flags for enabling/disabling functionality
+  FEATURE_AI_CARE_PLAN: "true"
+  FEATURE_PROVIDER_MATCHING: "true"
+  FEATURE_REAL_TIME_AVAILABILITY: "true"
+  FEATURE_DOCUMENT_ANALYSIS: "true"
+  FEATURE_ANALYTICS_DASHBOARD: "true"
