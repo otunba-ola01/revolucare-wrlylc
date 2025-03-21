@@ -1,0 +1,169 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: revolucare-database-backup
+  namespace: revolucare
+  labels:
+    app: revolucare
+    component: database-backup
+    part-of: revolucare-platform
+    managed-by: kubernetes
+  annotations:
+    kubernetes.io/description: "Scheduled backup job for Revolucare PostgreSQL database and document storage"
+spec:
+  schedule: "0 1 * * *"  # Run daily at 1:00 AM UTC
+  timeZone: "UTC"
+  concurrencyPolicy: Forbid  # Don't allow concurrent jobs
+  successfulJobsHistoryLimit: 3  # Keep history of 3 successful jobs
+  failedJobsHistoryLimit: 5  # Keep history of 5 failed jobs for troubleshooting
+  startingDeadlineSeconds: 600  # Allow job to start if missed schedule by up to 10 minutes
+  jobTemplate:
+    spec:
+      backoffLimit: 2  # Retry up to 2 times on failure
+      activeDeadlineSeconds: 7200  # 2 hours timeout
+      ttlSecondsAfterFinished: 86400  # Cleanup job resources after 24 hours
+      template:
+        metadata:
+          labels:
+            app: revolucare
+            component: database-backup
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: revolucare-backup-sa
+          containers:
+          - name: backup
+            image: revolucare/backup-tools:latest
+            imagePullPolicy: IfNotPresent
+            command: ["/bin/bash", "/scripts/backup.sh"]
+            args: ["$(ENVIRONMENT)"]
+            resources:
+              requests:
+                cpu: "200m"  # 0.2 CPU cores
+                memory: "256Mi"
+              limits:
+                cpu: "500m"  # 0.5 CPU cores
+                memory: "512Mi"
+            envFrom:
+            - configMapRef:
+                name: backup-config
+            - secretRef:
+                name: backup-secrets
+            env:
+            - name: ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: revolucare-env
+                  key: ENVIRONMENT
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            volumeMounts:
+            - name: backup-scripts
+              mountPath: "/scripts"
+              readOnly: true
+            - name: backup-data
+              mountPath: "/backups"
+            - name: backup-logs
+              mountPath: "/logs"
+            securityContext:
+              allowPrivilegeEscalation: false
+              runAsNonRoot: true
+              runAsUser: 1000
+              runAsGroup: 1000
+              capabilities:
+                drop: ["ALL"]
+          volumes:
+          - name: backup-scripts
+            configMap:
+              name: backup-scripts
+              defaultMode: 493  # 0755 in octal (read+execute)
+          - name: backup-data
+            persistentVolumeClaim:
+              claimName: backup-data-pvc
+          - name: backup-logs
+            persistentVolumeClaim:
+              claimName: backup-logs-pvc
+          nodeSelector:
+            kubernetes.io/os: linux
+          tolerations:
+          - key: "dedicated"
+            operator: "Equal"
+            value: "backup"
+            effect: "NoSchedule"
+          affinity:
+            nodeAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 100
+                preference:
+                  matchExpressions:
+                  - key: node-role.kubernetes.io/backup
+                    operator: Exists
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: backup-data-pvc
+  namespace: revolucare
+  labels:
+    app: revolucare
+    component: database-backup
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: standard
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: backup-logs-pvc
+  namespace: revolucare
+  labels:
+    app: revolucare
+    component: database-backup
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: standard
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backup-scripts
+  namespace: revolucare
+  labels:
+    app: revolucare
+    component: database-backup
+data:
+  backup.sh: |-
+    #!/bin/bash
+    # Backup script content will be mounted from the actual script file
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backup-config
+  namespace: revolucare
+  labels:
+    app: revolucare
+    component: database-backup
+data:
+  BACKUP_DIR: "/backups"
+  LOG_FILE: "/logs/backup.log"
+  RETENTION_DAYS: "30"
+  BACKUP_BUCKET: "revolucare-backups"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: revolucare-backup-sa
+  namespace: revolucare
+  labels:
+    app: revolucare
+    component: database-backup
