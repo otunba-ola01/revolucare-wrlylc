@@ -1,0 +1,35 @@
+config:
+  aws:region: us-east-1
+  revolucare:environment: dev
+  revolucare:vpcCidr: 10.0.0.0/16
+  revolucare:publicSubnetCidrs:
+    - 10.0.0.0/24
+    - 10.0.1.0/24
+  revolucare:privateSubnetCidrs:
+    - 10.0.2.0/24
+    - 10.0.3.0/24
+  revolucare:databaseInstanceType: db.t3.medium
+  revolucare:databaseMultiAZ: false
+  revolucare:databaseStorageGB: 50
+  revolucare:databaseBackupRetentionDays: 7
+  revolucare:redisInstanceType: cache.t3.small
+  revolucare:redisNumReplicas: 0
+  revolucare:ecsTaskCpu: 1024
+  revolucare:ecsTaskMemory: 2048
+  revolucare:ecsMinCapacity: 1
+  revolucare:ecsMaxCapacity: 2
+  revolucare:documentBucketName: revolucare-dev-documents
+  revolucare:assetsBucketName: revolucare-dev-assets
+  revolucare:backupBucketName: revolucare-dev-backups
+  revolucare:logRetentionDays: 14
+  revolucare:domainName: dev.revolucare.com
+  revolucare:enableWAF: false
+  revolucare:enableCloudTrail: false
+  revolucare:alertEmailEndpoint: alerts-dev@revolucare.com
+  revolucare:vercelProjectId: prj_revolucare_dev
+  revolucare:vercelTeamId: team_revolucare
+  revolucare:vercelRegion: iad1
+  revolucare:apiRateLimit: 100
+  revolucare:enablePerformanceInsights: false
+  revolucare:enableEnhancedMonitoring: false
+  revolucare:certificateArn: arn:aws:acm:us-east-1:123456789012:certificate/abcdef12-3456-7890-abcd-ef1234567890
