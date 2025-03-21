@@ -1,0 +1,59 @@
+# This file defines who is responsible for code in the repository
+# Format: file_pattern @username_or_team
+
+# Default owners for everything in the repo
+* @revolucare/lead-developers
+
+# Frontend code ownership
+src/web/ @revolucare/frontend-team
+src/web/components/ @revolucare/frontend-team
+src/web/app/ @revolucare/frontend-team
+src/web/lib/ @revolucare/frontend-team
+src/web/hooks/ @revolucare/frontend-team
+src/web/styles/ @revolucare/frontend-team
+src/web/public/ @revolucare/frontend-team
+src/web/types/ @revolucare/frontend-team @revolucare/backend-team
+
+# Backend code ownership
+src/backend/ @revolucare/backend-team
+src/backend/src/api/ @revolucare/backend-team
+src/backend/src/services/ @revolucare/backend-team
+src/backend/src/models/ @revolucare/backend-team
+src/backend/prisma/ @revolucare/backend-team @revolucare/database-team
+
+# AI services ownership
+src/backend/src/services/ai/ @revolucare/ai-team @revolucare/backend-team
+src/backend/src/integrations/openai.ts @revolucare/ai-team
+src/backend/src/integrations/azure-form-recognizer.ts @revolucare/ai-team
+
+# Infrastructure and DevOps
+infrastructure/ @revolucare/devops-team
+.github/workflows/ @revolucare/devops-team
+docker/ @revolucare/devops-team
+
+# Documentation
+*.md @revolucare/tech-writers @revolucare/lead-developers
+docs/ @revolucare/tech-writers
+
+# Security-sensitive areas
+src/backend/src/config/ @revolucare/security-team @revolucare/backend-team
+src/backend/src/utils/security.ts @revolucare/security-team
+src/web/lib/auth/ @revolucare/security-team @revolucare/frontend-team
+
+# Test files
+src/backend/tests/ @revolucare/qa-team @revolucare/backend-team
+src/web/__tests__/ @revolucare/qa-team @revolucare/frontend-team
+
+# Package management
+package.json @revolucare/lead-developers
+package-lock.json @revolucare/lead-developers
+src/web/package.json @revolucare/frontend-team @revolucare/lead-developers
+src/backend/package.json @revolucare/backend-team @revolucare/lead-developers
+
+# Configuration files
+*.config.js @revolucare/lead-developers
+*.config.ts @revolucare/lead-developers
+.env.example @revolucare/security-team @revolucare/lead-developers
+
+# This file
+.github/CODEOWNERS @revolucare/lead-developers
