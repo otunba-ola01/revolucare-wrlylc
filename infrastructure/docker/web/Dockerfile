@@ -1,6 +1,6 @@
 # Builder stage
 # Use node:18-alpine as the base image for building the Next.js application
-FROM node:18-alpine AS builder
+FROM node:23-alpine AS builder
 
 # Set working directory for the build process
 WORKDIR /app
