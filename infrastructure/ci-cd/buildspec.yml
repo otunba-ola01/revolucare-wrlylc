@@ -1,0 +1,92 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: '18'
+      docker: '20'
+    commands:
+      - echo Installing dependencies...
+      - npm install -g aws-cli
+      - npm install -g typescript
+      - npm install -g prisma
+      
+  pre_build:
+    commands:
+      - echo Logging in to Amazon ECR...
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+      - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+      - IMAGE_TAG=${COMMIT_HASH:=latest}
+      - REPOSITORY_URI=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$ECR_REPOSITORY
+      - echo Setting up environment variables...
+      - echo Repository URI: $REPOSITORY_URI
+      - echo Image tag: $IMAGE_TAG
+      - cd $CODEBUILD_SRC_DIR/$SOURCE_PATH
+      - echo Installing project dependencies...
+      - npm ci
+      - echo Running tests...
+      - npm run test
+      
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo Building the Docker image...
+      - docker build -t $REPOSITORY_URI:$IMAGE_TAG -t $REPOSITORY_URI:$ENVIRONMENT-latest -f $DOCKERFILE_PATH .
+      - echo Pushing the Docker image...
+      - docker push $REPOSITORY_URI:$IMAGE_TAG
+      - docker push $REPOSITORY_URI:$ENVIRONMENT-latest
+      - echo Writing image definitions file...
+      - echo '{"ImageURI":"'$REPOSITORY_URI:$IMAGE_TAG'"}' > imageDefinitions.json
+      - echo Preparing task definition...
+      - aws ecs describe-task-definition --task-definition $TASK_DEFINITION_NAME --query taskDefinition > taskdef.json
+      - jq '.containerDefinitions[0].image = "'$REPOSITORY_URI:$IMAGE_TAG'"' taskdef.json > taskdef-new.json
+      - mv taskdef-new.json taskdef.json
+      - echo Registering new task definition...
+      - aws ecs register-task-definition --cli-input-json file://taskdef.json --family $TASK_DEFINITION_NAME
+      
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      - echo Preparing for deployment...
+      - TASK_DEFINITION_ARN=$(aws ecs describe-task-definition --task-definition $TASK_DEFINITION_NAME --query 'taskDefinition.taskDefinitionArn' --output text)
+      - echo Task definition ARN: $TASK_DEFINITION_ARN
+      - echo Creating AppSpec file...
+      - cat appspec-template.yaml | sed "s|<TASK_DEFINITION>|$TASK_DEFINITION_ARN|g" > appspec.yaml
+      - echo AppSpec file created
+      - if [ "$DEPLOY_TYPE" = "blue-green" ]; then
+      -   echo Initiating Blue/Green deployment...
+      -   aws deploy create-deployment --application-name $APPLICATION_NAME --deployment-group-name $DEPLOYMENT_GROUP --revision revisionType=AppSpecContent,appSpecContent={content=$(cat appspec.yaml),sha256=$(shasum -a 256 appspec.yaml | cut -d' ' -f1)}
+      - elif [ "$DEPLOY_TYPE" = "rolling" ]; then
+      -   echo Initiating rolling update...
+      -   aws ecs update-service --cluster $ECS_CLUSTER --service $ECS_SERVICE --task-definition $TASK_DEFINITION_ARN --force-new-deployment
+      - else
+      -   echo No deployment initiated. Set DEPLOY_TYPE to 'blue-green' or 'rolling'
+      - fi
+      
+artifacts:
+  files:
+    - imageDefinitions.json
+    - appspec.yaml
+    - taskdef.json
+    
+cache:
+  paths:
+    - node_modules/**/*
+    
+env:
+  variables:
+    ECR_REPOSITORY: revolucare-backend
+    TASK_DEFINITION_NAME: revolucare-backend-${ENVIRONMENT}
+    APPLICATION_NAME: revolucare-backend-${ENVIRONMENT}
+    DEPLOYMENT_GROUP: revolucare-backend-${ENVIRONMENT}-dg
+    ECS_CLUSTER: revolucare-${ENVIRONMENT}
+    ECS_SERVICE: revolucare-backend-${ENVIRONMENT}
+    SOURCE_PATH: src/backend
+    DOCKERFILE_PATH: infrastructure/docker/backend/Dockerfile
+  parameter-store:
+    AWS_ACCOUNT_ID: /revolucare/common/aws-account-id
+    ENVIRONMENT: /revolucare/codebuild/environment
+  exported-variables:
+    - IMAGE_TAG
+    - REPOSITORY_URI
+    - TASK_DEFINITION_ARN
