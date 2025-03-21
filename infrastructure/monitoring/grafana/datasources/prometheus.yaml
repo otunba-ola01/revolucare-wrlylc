@@ -1,0 +1,76 @@
+# Grafana datasource configuration for Prometheus
+# This configures how Grafana connects to and queries metrics from Prometheus,
+# enabling visualization of system, application, and business metrics through dashboards.
+apiVersion: 1
+
+# List of data sources to be configured in Grafana
+datasources:
+  # Prometheus data source configuration for the Revolucare platform
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    # Default URL - will be overridden based on environment
+    url: http://prometheus:9090
+    access: proxy
+    isDefault: true
+    jsonData:
+      # How often Prometheus scrapes targets
+      timeInterval: 15s
+      # The timeout for Prometheus queries
+      queryTimeout: 60s
+      # HTTP method used for making requests to Prometheus
+      httpMethod: POST
+      # Configuration for linking exemplars to traces in Tempo
+      exemplarTraceIdDestinations:
+        - name: traceID
+          datasourceUid: tempo
+      # Type and version of Prometheus
+      prometheusType: Prometheus
+      prometheusVersion: 2.45.0
+      # Caching level for queries
+      cacheLevel: High
+      # Whether to disable recording rules
+      disableRecordingRules: false
+      # Overlap window for incremental queries
+      incrementalQueryOverlapWindow: 10m
+    # Secure JSON data (populated through environment variables or UI)
+    secureJsonData: {}
+    version: 1
+    editable: true
+
+# Environment-specific settings (applied during deployment):
+#
+# Development:
+#   url: http://prometheus:9090
+#   timeInterval: 30s
+#
+# Staging:
+#   url: http://prometheus:9090
+#   timeInterval: 15s
+#
+# Production:
+#   url: http://prometheus:9090
+#   timeInterval: 15s
+
+# Security configuration:
+#
+# Authentication:
+#   enabled: false
+#   method: basic_auth
+#   username: ${PROMETHEUS_USERNAME}
+#   password: ${PROMETHEUS_PASSWORD}
+#
+# TLS:
+#   enabled: false
+#   skip_verify: false
+#   ca_cert: ${PROMETHEUS_CA_CERT}
+#   client_cert: ${PROMETHEUS_CLIENT_CERT}
+#   client_key: ${PROMETHEUS_CLIENT_KEY}
+
+# Performance tuning:
+#
+# max_concurrent_queries: 4
+# cache_ttl: 60
+# timeout_settings:
+#   query_timeout: 60s
+#   http_timeout: 30s
