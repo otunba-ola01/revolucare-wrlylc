@@ -1,0 +1,32 @@
+name: revolucare-infrastructure
+runtime:
+  name: nodejs
+  options:
+    typescript: true
+    nodeVersion: "18"
+description: Infrastructure as Code for the Revolucare care management platform
+main: index.ts
+config:
+  aws:region:
+    description: The AWS region to deploy resources into
+    default: us-east-1
+  revolucare:environment:
+    description: Deployment environment (dev, staging, prod)
+    default: dev
+template:
+  description: A template for Revolucare infrastructure stacks
+  config:
+    revolucare:vpcCidr:
+      description: CIDR block for the VPC
+      default: 10.0.0.0/16
+    revolucare:availabilityZones:
+      description: Number of availability zones to use
+      default: 2
+    revolucare:databaseInstanceType:
+      description: RDS instance type
+      default: db.t3.medium
+    revolucare:redisNodeType:
+      description: ElastiCache Redis node type
+      default: cache.t3.small
+backend:
+  url: s3://revolucare-pulumi-state
