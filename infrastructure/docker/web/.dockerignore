@@ -1,0 +1,56 @@
+node_modules
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+*.tsbuildinfo
+
+# Version control
+.git
+.github
+.husky
+
+# Build outputs
+.next
+out
+coverage
+storybook-static
+public/workbox-*.js
+public/sw.js
+public/fallback-*.js
+.next/cache
+.next/static/development
+
+# Test files
+__tests__
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+jest.config.ts
+playwright.config.ts
+
+# Environment and configuration
+.env*
+.eslintrc*
+.prettierrc*
+tsconfig.json
+.storybook
+docker-compose*
+Dockerfile*
+.dockerignore
+nginx.conf
+
+# Editor files
+.vscode
+.idea
+
+# Documentation
+*.md
+LICENSE
+
+# Logs
+*.log
+
+# System files
+.DS_Store
+Thumbs.db
