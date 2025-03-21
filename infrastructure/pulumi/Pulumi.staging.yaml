@@ -1,0 +1,79 @@
+config:
+  # AWS Region
+  aws:region: us-east-1
+  
+  # Environment
+  revolucare:environment: staging
+  
+  # Network Configuration
+  revolucare:vpcCidr: 10.1.0.0/16
+  revolucare:publicSubnetCidrs:
+    - 10.1.0.0/24
+    - 10.1.1.0/24
+  revolucare:privateSubnetCidrs:
+    - 10.1.2.0/24
+    - 10.1.3.0/24
+  
+  # Database Configuration
+  revolucare:databaseInstanceType: db.t3.large
+  revolucare:databaseMultiAZ: true
+  revolucare:databaseStorageGB: 100
+  revolucare:databaseBackupRetentionDays: 14
+  
+  # Redis Configuration
+  revolucare:redisInstanceType: cache.t3.medium
+  revolucare:redisNumReplicas: 1
+  
+  # ECS Configuration
+  revolucare:ecsTaskCpu: 1024
+  revolucare:ecsTaskMemory: 2048
+  revolucare:ecsMinCapacity: 2
+  revolucare:ecsMaxCapacity: 4
+  
+  # Storage Configuration
+  revolucare:documentBucketName: revolucare-staging-documents
+  revolucare:assetsBucketName: revolucare-staging-assets
+  revolucare:backupBucketName: revolucare-staging-backups
+  
+  # Logging and Monitoring
+  revolucare:logRetentionDays: 30
+  
+  # Domain Configuration
+  revolucare:domainName: staging.revolucare.com
+  
+  # Security Configuration
+  revolucare:enableWAF: true
+  revolucare:enableCloudTrail: true
+  
+  # Alerting
+  revolucare:alertEmailEndpoint: alerts-staging@revolucare.com
+  
+  # Vercel Configuration
+  revolucare:vercelProjectId: prj_revolucare_staging
+  revolucare:vercelTeamId: team_revolucare
+  revolucare:vercelRegion: iad1
+  
+  # API Configuration
+  revolucare:apiRateLimit: 300
+  
+  # Performance Configuration
+  revolucare:enablePerformanceInsights: true
+  revolucare:enableEnhancedMonitoring: true
+  
+  # Certificate
+  revolucare:certificateArn: arn:aws:acm:us-east-1:123456789012:certificate/abcdef12-3456-7890-abcd-ef1234567890
+  
+  # Disaster Recovery
+  revolucare:crossRegionReplication: false
+  
+  # Auto Scaling
+  revolucare:enableAutoScaling: true
+  revolucare:cpuUtilizationThreshold: 70
+  revolucare:memoryUtilizationThreshold: 80
+  
+  # CDN and Security
+  revolucare:enableCloudFrontCDN: true
+  revolucare:enableDDoSProtection: true
+  revolucare:enableDataEncryption: true
+  revolucare:enableVPCFlowLogs: true
+  revolucare:enableGuardDuty: true
