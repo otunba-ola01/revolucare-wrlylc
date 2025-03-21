@@ -1,7 +1,7 @@
 # -----------------------------------------------------
 # Builder stage - used to compile TypeScript to JavaScript
 # -----------------------------------------------------
-FROM node:18-alpine AS builder
+FROM node:23-alpine AS builder
 # Version: 18.18.0 (Alpine 3.17)
 
 # Set working directory
@@ -26,7 +26,7 @@ RUN npm run build
 # -----------------------------------------------------
 # Production stage - minimal image for running the application
 # -----------------------------------------------------
-FROM node:18-alpine
+FROM node:23-alpine
 # Version: 18.18.0 (Alpine 3.17)
 
 # Set working directory
