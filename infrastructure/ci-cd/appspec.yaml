@@ -1,0 +1,52 @@
+version: 0.0
+# AppSpec file for AWS CodeDeploy to ECS Blue/Green deployment
+
+Resources:
+  - TargetService:
+      Type: AWS::ECS::Service
+      Properties:
+        TaskDefinition: <TASK_DEFINITION>
+        LoadBalancerInfo:
+          ContainerName: revolucare-backend
+          ContainerPort: 3000
+        PlatformVersion: LATEST
+        NetworkConfiguration:
+          AwsvpcConfiguration:
+            Subnets:
+              - <SUBNET_1>
+              - <SUBNET_2>
+            SecurityGroups:
+              - <SECURITY_GROUP>
+            AssignPublicIp: DISABLED
+
+# Deployment lifecycle event hooks
+Hooks:
+  # Run before the new task set is created
+  BeforeInstall:
+    - location: scripts/before-install.sh
+      timeout: 300
+      runas: codedeploy-agent
+  
+  # Run after the new task set is created
+  AfterInstall:
+    - location: scripts/after-install.sh
+      timeout: 300
+      runas: codedeploy-agent
+  
+  # Run after test traffic is routed to the new task set
+  AfterAllowTestTraffic:
+    - location: scripts/run-tests.sh
+      timeout: 600
+      runas: codedeploy-agent
+  
+  # Run before production traffic is routed to the new task set
+  BeforeAllowTraffic:
+    - location: scripts/before-allow-traffic.sh
+      timeout: 300
+      runas: codedeploy-agent
+  
+  # Run after production traffic is routed to the new task set
+  AfterAllowTraffic:
+    - location: scripts/after-allow-traffic.sh
+      timeout: 300
+      runas: codedeploy-agent
