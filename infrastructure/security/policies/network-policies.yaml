@@ -1,0 +1,306 @@
+# Zero-trust network policies for Revolucare platform
+# These policies implement a strict network security model with default deny and explicit allow rules
+# Ensures secure pod-to-pod communication and protection of sensitive healthcare data (HIPAA compliant)
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: revolucare
+  labels:
+    app: revolucare
+    part-of: revolucare-platform
+    managed-by: kubernetes
+  annotations:
+    kubernetes.io/description: Default deny all ingress and egress traffic
+spec:
+  podSelector: {}  # Applies to all pods in namespace
+  policyTypes:
+  - Ingress
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-controller
+  namespace: revolucare
+  labels:
+    app: revolucare
+    part-of: revolucare-platform
+    managed-by: kubernetes
+  annotations:
+    kubernetes.io/description: Allow ingress controller to access web and backend services
+spec:
+  podSelector:
+    matchLabels:
+      app: revolucare
+      component: web
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ingress-nginx
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: ingress-nginx
+    ports:
+    - port: 80
+      protocol: TCP
+  policyTypes:
+  - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-backend-ingress
+  namespace: revolucare
+  labels:
+    app: revolucare
+    part-of: revolucare-platform
+    managed-by: kubernetes
+  annotations:
+    kubernetes.io/description: Allow ingress controller and web frontend to access backend services
+spec:
+  podSelector:
+    matchLabels:
+      app: revolucare
+      component: backend
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ingress-nginx
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: ingress-nginx
+    ports:
+    - port: 80
+      protocol: TCP
+    - port: 8080
+      protocol: TCP
+  - from:
+    - podSelector:
+        matchLabels:
+          app: revolucare
+          component: web
+    ports:
+    - port: 80
+      protocol: TCP
+    - port: 8080
+      protocol: TCP
+  policyTypes:
+  - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-backend-to-database
+  namespace: revolucare
+  labels:
+    app: revolucare
+    part-of: revolucare-platform
+    managed-by: kubernetes
+  annotations:
+    kubernetes.io/description: Allow backend services to access the database
+spec:
+  podSelector:
+    matchLabels:
+      app: revolucare
+      component: postgresql
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: revolucare
+          component: backend
+    ports:
+    - port: 5432
+      protocol: TCP
+  policyTypes:
+  - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-backend-to-redis
+  namespace: revolucare
+  labels:
+    app: revolucare
+    part-of: revolucare-platform
+    managed-by: kubernetes
+  annotations:
+    kubernetes.io/description: Allow backend services to access Redis
+spec:
+  podSelector:
+    matchLabels:
+      app: revolucare
+      component: redis
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: revolucare
+          component: backend
+    ports:
+    - port: 6379
+      protocol: TCP
+  policyTypes:
+  - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-metrics
+  namespace: revolucare
+  labels:
+    app: revolucare
+    part-of: revolucare-platform
+    managed-by: kubernetes
+  annotations:
+    kubernetes.io/description: Allow Prometheus to scrape metrics from all services
+spec:
+  podSelector:
+    matchLabels:
+      app: revolucare
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: monitoring
+      podSelector:
+        matchLabels:
+          app: prometheus
+    ports:
+    - port: 3000
+      protocol: TCP
+    - port: 80
+      protocol: TCP
+  policyTypes:
+  - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+  namespace: revolucare
+  labels:
+    app: revolucare
+    part-of: revolucare-platform
+    managed-by: kubernetes
+  annotations:
+    kubernetes.io/description: Allow DNS resolution for all pods
+spec:
+  podSelector: {}  # Applies to all pods in namespace
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - port: 53
+      protocol: UDP
+    - port: 53
+      protocol: TCP
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-backend-external-egress
+  namespace: revolucare
+  labels:
+    app: revolucare
+    part-of: revolucare-platform
+    managed-by: kubernetes
+  annotations:
+    kubernetes.io/description: Allow backend services to access external APIs
+spec:
+  podSelector:
+    matchLabels:
+      app: revolucare
+      component: backend
+  egress:
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 10.0.0.0/8     # Private network ranges excluded to prevent
+        - 172.16.0.0/12  # potential access to internal resources via
+        - 192.168.0.0/16 # external routes (security best practice)
+    ports:
+    - port: 443
+      protocol: TCP
+    - port: 80
+      protocol: TCP
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-backend-to-internal-services
+  namespace: revolucare
+  labels:
+    app: revolucare
+    part-of: revolucare-platform
+    managed-by: kubernetes
+  annotations:
+    kubernetes.io/description: Allow backend services to access other internal services
+spec:
+  podSelector:
+    matchLabels:
+      app: revolucare
+      component: backend
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app: revolucare
+          component: postgresql
+    ports:
+    - port: 5432
+      protocol: TCP
+  - to:
+    - podSelector:
+        matchLabels:
+          app: revolucare
+          component: redis
+    ports:
+    - port: 6379
+      protocol: TCP
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-web-to-backend
+  namespace: revolucare
+  labels:
+    app: revolucare
+    part-of: revolucare-platform
+    managed-by: kubernetes
+  annotations:
+    kubernetes.io/description: Allow web frontend to access backend services
+spec:
+  podSelector:
+    matchLabels:
+      app: revolucare
+      component: web
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app: revolucare
+          component: backend
+    ports:
+    - port: 80
+      protocol: TCP
+    - port: 8080
+      protocol: TCP
+  policyTypes:
+  - Egress
