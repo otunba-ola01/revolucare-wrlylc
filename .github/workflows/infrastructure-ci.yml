@@ -1,0 +1,165 @@
+# Infrastructure CI
+# Workflow configuration for infrastructure CI
+
+name: Infrastructure CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'infrastructure/**'
+      - '.github/workflows/infrastructure-ci.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'infrastructure/**'
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '18'
+  PULUMI_VERSION: '3.78.1'
+  WORKING_DIRECTORY: './infrastructure/pulumi'
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ env.WORKING_DIRECTORY }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: npm ci
+
+      - name: Run TypeScript lint
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: npm run lint
+
+  validate:
+    name: Validate Infrastructure
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ env.WORKING_DIRECTORY }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: npm ci
+
+      - name: Install Pulumi CLI
+        run: curl -fsSL https://get.pulumi.com | sh -s -- --version ${{ env.PULUMI_VERSION }}
+
+      - name: Pulumi preview (dev stack)
+        uses: pulumi/actions@v4
+        with:
+          command: preview
+          stack-name: dev
+          work-dir: ${{ env.WORKING_DIRECTORY }}
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ env.WORKING_DIRECTORY }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: npm ci
+
+      - name: Run npm audit
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: npm audit --production --audit-level=high
+
+      - name: Run Snyk security scan
+        uses: snyk/actions/node@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: '--severity-threshold=high'
+
+  cost-analysis:
+    name: Cost Analysis
+    runs-on: ubuntu-latest
+    needs: validate
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ env.WORKING_DIRECTORY }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: npm ci
+
+      - name: Install Pulumi CLI
+        run: curl -fsSL https://get.pulumi.com | sh -s -- --version ${{ env.PULUMI_VERSION }}
+
+      - name: Install Infracost
+        run: curl -fsSL https://raw.githubusercontent.com/infracost/infracost/master/scripts/install.sh | sh
+
+      - name: Generate Pulumi stack outputs
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: pulumi stack export --stack dev > stack.json
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+
+      - name: Run Infracost analysis
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: infracost breakdown --path stack.json --format json --out-file infracost.json
+        env:
+          INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
+
+      - name: Generate Infracost report
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: infracost output --path infracost.json --format html --out-file infracost-report.html
+
+      - name: Upload cost report
+        uses: actions/upload-artifact@v3
+        with:
+          name: infracost-report
+          path: ${{ env.WORKING_DIRECTORY }}/infracost-report.html
+          retention-days: 90
+
+  summary:
+    name: CI Summary
+    runs-on: ubuntu-latest
+    needs: [lint, validate, security-scan, cost-analysis]
+    if: always()
+    steps:
+      - name: Check job statuses
+        run: "echo 'Infrastructure CI pipeline completed with status: ${{ job.status }}'"
+
+      - name: Summarize results
+        run: "echo 'Lint: ${{ needs.lint.result }}' && echo 'Validation: ${{ needs.validate.result }}' && echo 'Security Scan: ${{ needs.security-scan.result }}' && echo 'Cost Analysis: ${{ needs.cost-analysis.result }}'"
