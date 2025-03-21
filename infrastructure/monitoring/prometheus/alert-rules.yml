@@ -1,0 +1,423 @@
+groups:
+  - name: system_alerts
+    rules:
+      - alert: InstanceDown
+        expr: up == 0
+        for: 5m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "Instance {{ $labels.instance }} is down"
+          description: "{{ $labels.instance }} of job {{ $labels.job }} has been down for more than 5 minutes."
+          runbook_url: "https://wiki.revolucare.com/runbooks/instance-down"
+      
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
+        for: 10m
+        labels:
+          severity: warning
+          category: resource
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage on {{ $labels.instance }} has exceeded 85% for more than 10 minutes."
+          runbook_url: "https://wiki.revolucare.com/runbooks/high-cpu-usage"
+      
+      - alert: HighMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100 > 90
+        for: 10m
+        labels:
+          severity: warning
+          category: resource
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage on {{ $labels.instance }} has exceeded 90% for more than 10 minutes."
+          runbook_url: "https://wiki.revolucare.com/runbooks/high-memory-usage"
+      
+      - alert: HighDiskUsage
+        expr: (1 - node_filesystem_avail_bytes{fstype!="tmpfs", mountpoint="/"} / node_filesystem_size_bytes{fstype!="tmpfs", mountpoint="/"}) * 100 > 85
+        for: 10m
+        labels:
+          severity: warning
+          category: resource
+        annotations:
+          summary: "High disk usage on {{ $labels.instance }}"
+          description: "Disk usage on {{ $labels.instance }} ({{ $labels.mountpoint }}) has exceeded 85% for more than 10 minutes."
+          runbook_url: "https://wiki.revolucare.com/runbooks/high-disk-usage"
+      
+      - alert: CriticalDiskUsage
+        expr: (1 - node_filesystem_avail_bytes{fstype!="tmpfs", mountpoint="/"} / node_filesystem_size_bytes{fstype!="tmpfs", mountpoint="/"}) * 100 > 95
+        for: 5m
+        labels:
+          severity: critical
+          category: resource
+        annotations:
+          summary: "Critical disk usage on {{ $labels.instance }}"
+          description: "Disk usage on {{ $labels.instance }} ({{ $labels.mountpoint }}) has exceeded 95% for more than 5 minutes."
+          runbook_url: "https://wiki.revolucare.com/runbooks/critical-disk-usage"
+      
+      - alert: NetworkErrors
+        expr: rate(node_network_transmit_errs_total[5m]) + rate(node_network_receive_errs_total[5m]) > 5
+        for: 5m
+        labels:
+          severity: warning
+          category: network
+        annotations:
+          summary: "Network errors on {{ $labels.instance }}"
+          description: "{{ $labels.instance }} is experiencing network errors (> 5 errors/s) for more than 5 minutes."
+          runbook_url: "https://wiki.revolucare.com/runbooks/network-errors"
+
+  - name: api_alerts
+    rules:
+      - alert: HighAPIErrorRate
+        expr: sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m])) * 100 > 5
+        for: 5m
+        labels:
+          severity: critical
+          category: performance
+        annotations:
+          summary: "High API error rate"
+          description: "API error rate is above 5% for more than 5 minutes (current value: {{ $value | printf \"%.2f\" }}%)."
+          runbook_url: "https://wiki.revolucare.com/runbooks/high-api-error-rate"
+      
+      - alert: APIHighResponseTime
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{handler!="/metrics"}[5m])) by (le)) * 1000 > 500
+        for: 5m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "High API response time"
+          description: "95th percentile of API response time is above 500ms for more than 5 minutes (current value: {{ $value | printf \"%.2f\" }}ms)."
+          runbook_url: "https://wiki.revolucare.com/runbooks/api-high-response-time"
+      
+      - alert: APICriticalResponseTime
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{handler!="/metrics"}[5m])) by (le)) * 1000 > 1000
+        for: 5m
+        labels:
+          severity: critical
+          category: performance
+        annotations:
+          summary: "Critical API response time"
+          description: "95th percentile of API response time is above 1000ms for more than 5 minutes (current value: {{ $value | printf \"%.2f\" }}ms)."
+          runbook_url: "https://wiki.revolucare.com/runbooks/api-critical-response-time"
+      
+      - alert: EndpointHighErrorRate
+        expr: sum(rate(http_requests_total{status=~"5.."}[5m])) by (handler) / sum(rate(http_requests_total[5m])) by (handler) * 100 > 10
+        for: 5m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "High error rate for endpoint {{ $labels.handler }}"
+          description: "Error rate for endpoint {{ $labels.handler }} is above 10% for more than 5 minutes (current value: {{ $value | printf \"%.2f\" }}%)."
+          runbook_url: "https://wiki.revolucare.com/runbooks/endpoint-high-error-rate"
+      
+      - alert: EndpointDown
+        expr: sum(up{job="blackbox"}) by (instance) == 0
+        for: 5m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "Endpoint {{ $labels.instance }} is down"
+          description: "Endpoint {{ $labels.instance }} has been down for more than 5 minutes."
+          runbook_url: "https://wiki.revolucare.com/runbooks/endpoint-down"
+
+  - name: database_alerts
+    rules:
+      - alert: DatabaseHighConnections
+        expr: pg_stat_activity_count{datname!~"template.*|postgres"} / pg_settings_max_connections * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          category: resource
+        annotations:
+          summary: "High database connections for {{ $labels.datname }}"
+          description: "Database {{ $labels.datname }} is using more than 80% of available connections for more than 5 minutes (current value: {{ $value | printf \"%.2f\" }}%)."
+          runbook_url: "https://wiki.revolucare.com/runbooks/database-high-connections"
+      
+      - alert: DatabaseCriticalConnections
+        expr: pg_stat_activity_count{datname!~"template.*|postgres"} / pg_settings_max_connections * 100 > 95
+        for: 5m
+        labels:
+          severity: critical
+          category: resource
+        annotations:
+          summary: "Critical database connections for {{ $labels.datname }}"
+          description: "Database {{ $labels.datname }} is using more than 95% of available connections for more than 5 minutes (current value: {{ $value | printf \"%.2f\" }}%)."
+          runbook_url: "https://wiki.revolucare.com/runbooks/database-critical-connections"
+      
+      - alert: DatabaseHighQueryTime
+        expr: pg_stat_activity_max_tx_duration{datname!~"template.*|postgres"} > 300
+        for: 5m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "Long-running query in {{ $labels.datname }}"
+          description: "Database {{ $labels.datname }} has a query running for more than 5 minutes (duration: {{ $value | printf \"%.2f\" }}s)."
+          runbook_url: "https://wiki.revolucare.com/runbooks/database-high-query-time"
+      
+      - alert: DatabaseHighReplicationLag
+        expr: pg_replication_lag > 30
+        for: 5m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "High replication lag"
+          description: "Database replication lag is above 30 seconds for more than 5 minutes (current value: {{ $value | printf \"%.2f\" }}s)."
+          runbook_url: "https://wiki.revolucare.com/runbooks/database-high-replication-lag"
+
+  - name: cache_alerts
+    rules:
+      - alert: RedisHighMemoryUsage
+        expr: redis_memory_used_bytes / redis_memory_max_bytes * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          category: resource
+        annotations:
+          summary: "High Redis memory usage"
+          description: "Redis memory usage is above 80% for more than 5 minutes (current value: {{ $value | printf \"%.2f\" }}%)."
+          runbook_url: "https://wiki.revolucare.com/runbooks/redis-high-memory-usage"
+      
+      - alert: RedisCriticalMemoryUsage
+        expr: redis_memory_used_bytes / redis_memory_max_bytes * 100 > 95
+        for: 5m
+        labels:
+          severity: critical
+          category: resource
+        annotations:
+          summary: "Critical Redis memory usage"
+          description: "Redis memory usage is above 95% for more than 5 minutes (current value: {{ $value | printf \"%.2f\" }}%)."
+          runbook_url: "https://wiki.revolucare.com/runbooks/redis-critical-memory-usage"
+      
+      - alert: RedisLowHitRate
+        expr: redis_keyspace_hits_total / (redis_keyspace_hits_total + redis_keyspace_misses_total) * 100 < 50
+        for: 15m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "Low Redis cache hit rate"
+          description: "Redis cache hit rate is below 50% for more than 15 minutes (current value: {{ $value | printf \"%.2f\" }}%)."
+          runbook_url: "https://wiki.revolucare.com/runbooks/redis-low-hit-rate"
+      
+      - alert: RedisRejectedConnections
+        expr: rate(redis_rejected_connections_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          category: resource
+        annotations:
+          summary: "Redis rejecting connections"
+          description: "Redis is rejecting connections for more than 5 minutes (rate: {{ $value | printf \"%.2f\" }}/s)."
+          runbook_url: "https://wiki.revolucare.com/runbooks/redis-rejected-connections"
+
+  - name: business_alerts
+    rules:
+      - alert: CarePlanGenerationFailureRate
+        expr: rate(revolucare_care_plan_generation_failures_total[1h]) / rate(revolucare_care_plan_generation_attempts_total[1h]) * 100 > 20
+        for: 15m
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: "High care plan generation failure rate"
+          description: "Care plan generation failure rate is above 20% for more than 15 minutes (current value: {{ $value | printf \"%.2f\" }}%)."
+          runbook_url: "https://wiki.revolucare.com/runbooks/care-plan-generation-failure-rate"
+      
+      - alert: CarePlanGenerationTime
+        expr: revolucare_care_plan_generation_duration_seconds{quantile="0.9"} > 30
+        for: 15m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "Slow care plan generation"
+          description: "90th percentile of care plan generation time is above 30 seconds for more than 15 minutes (current value: {{ $value | printf \"%.2f\" }}s)."
+          runbook_url: "https://wiki.revolucare.com/runbooks/care-plan-generation-time"
+      
+      - alert: ProviderMatchingFailureRate
+        expr: (revolucare_provider_matches_attempted - revolucare_provider_matches_successful) / revolucare_provider_matches_attempted * 100 > 30
+        for: 15m
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: "High provider matching failure rate"
+          description: "Provider matching failure rate is above 30% for more than 15 minutes (current value: {{ $value | printf \"%.2f\" }}%)."
+          runbook_url: "https://wiki.revolucare.com/runbooks/provider-matching-failure-rate"
+      
+      - alert: ProviderMatchingTime
+        expr: revolucare_provider_matching_duration_seconds{quantile="0.95"} > 2
+        for: 15m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "Slow provider matching"
+          description: "95th percentile of provider matching time is above 2 seconds for more than 15 minutes (current value: {{ $value | printf \"%.2f\" }}s)."
+          runbook_url: "https://wiki.revolucare.com/runbooks/provider-matching-time"
+      
+      - alert: DocumentProcessingFailureRate
+        expr: rate(revolucare_document_processing_total{status="failure"}[1h]) / rate(revolucare_document_processing_total[1h]) * 100 > 20
+        for: 15m
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: "High document processing failure rate"
+          description: "Document processing failure rate is above 20% for more than 15 minutes (current value: {{ $value | printf \"%.2f\" }}%)."
+          runbook_url: "https://wiki.revolucare.com/runbooks/document-processing-failure-rate"
+      
+      - alert: DocumentProcessingTime
+        expr: revolucare_document_processing_duration_seconds{quantile="0.95"} > 60
+        for: 15m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "Slow document processing"
+          description: "95th percentile of document processing time is above 60 seconds for more than 15 minutes (current value: {{ $value | printf \"%.2f\" }}s)."
+          runbook_url: "https://wiki.revolucare.com/runbooks/document-processing-time"
+
+  - name: external_service_alerts
+    rules:
+      - alert: ExternalServiceDown
+        expr: revolucare_external_service_up == 0
+        for: 5m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "External service {{ $labels.service }} is down"
+          description: "External service {{ $labels.service }} has been down for more than 5 minutes."
+          runbook_url: "https://wiki.revolucare.com/runbooks/external-service-down"
+      
+      - alert: ExternalServiceHighResponseTime
+        expr: revolucare_external_service_request_duration_seconds{quantile="0.95"} * 1000 > 2000
+        for: 10m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "High response time for external service {{ $labels.service }}"
+          description: "95th percentile of response time for external service {{ $labels.service }} is above 2000ms for more than 10 minutes (current value: {{ $value | printf \"%.2f\" }}ms)."
+          runbook_url: "https://wiki.revolucare.com/runbooks/external-service-high-response-time"
+      
+      - alert: ExternalServiceHighErrorRate
+        expr: revolucare_external_service_request_errors_total / revolucare_external_service_requests_total * 100 > 10
+        for: 10m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "High error rate for external service {{ $labels.service }}"
+          description: "Error rate for external service {{ $labels.service }} is above 10% for more than 10 minutes (current value: {{ $value | printf \"%.2f\" }}%)."
+          runbook_url: "https://wiki.revolucare.com/runbooks/external-service-high-error-rate"
+      
+      - alert: AIServiceFailureRate
+        expr: revolucare_external_service_request_errors_total{service=~"openai|azure-form-recognizer"} / revolucare_external_service_requests_total{service=~"openai|azure-form-recognizer"} * 100 > 5
+        for: 10m
+        labels:
+          severity: critical
+          category: performance
+        annotations:
+          summary: "High failure rate for AI service {{ $labels.service }}"
+          description: "Failure rate for AI service {{ $labels.service }} is above 5% for more than 10 minutes (current value: {{ $value | printf \"%.2f\" }}%)."
+          runbook_url: "https://wiki.revolucare.com/runbooks/ai-service-failure-rate"
+
+  - name: sla_alerts
+    rules:
+      - alert: APIResponseTimeSLAViolation
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{handler!="/metrics"}[1h])) by (le)) * 1000 > 500
+        for: 1h
+        labels:
+          severity: critical
+          category: sla
+        annotations:
+          summary: "API response time SLA violation"
+          description: "95th percentile of API response time has exceeded the SLA threshold of 500ms for more than 1 hour (current value: {{ $value | printf \"%.2f\" }}ms)."
+          runbook_url: "https://wiki.revolucare.com/runbooks/api-response-time-sla-violation"
+      
+      - alert: CarePlanGenerationSLAViolation
+        expr: revolucare_care_plan_generation_duration_seconds{quantile="0.9"} > 30
+        for: 1h
+        labels:
+          severity: critical
+          category: sla
+        annotations:
+          summary: "Care plan generation SLA violation"
+          description: "90th percentile of care plan generation time has exceeded the SLA threshold of 30 seconds for more than 1 hour (current value: {{ $value | printf \"%.2f\" }}s)."
+          runbook_url: "https://wiki.revolucare.com/runbooks/care-plan-generation-sla-violation"
+      
+      - alert: ProviderMatchingSLAViolation
+        expr: revolucare_provider_matching_duration_seconds{quantile="0.95"} > 2
+        for: 1h
+        labels:
+          severity: critical
+          category: sla
+        annotations:
+          summary: "Provider matching SLA violation"
+          description: "95th percentile of provider matching time has exceeded the SLA threshold of 2 seconds for more than 1 hour (current value: {{ $value | printf \"%.2f\" }}s)."
+          runbook_url: "https://wiki.revolucare.com/runbooks/provider-matching-sla-violation"
+      
+      - alert: DocumentProcessingSLAViolation
+        expr: revolucare_document_processing_duration_seconds{quantile="0.9"} > 60
+        for: 1h
+        labels:
+          severity: critical
+          category: sla
+        annotations:
+          summary: "Document processing SLA violation"
+          description: "90th percentile of document processing time has exceeded the SLA threshold of 60 seconds for more than 1 hour (current value: {{ $value | printf \"%.2f\" }}s)."
+          runbook_url: "https://wiki.revolucare.com/runbooks/document-processing-sla-violation"
+      
+      - alert: SystemUptimeSLAViolation
+        expr: sum(up) / count(up) * 100 < 99.9
+        for: 1h
+        labels:
+          severity: critical
+          category: sla
+        annotations:
+          summary: "System uptime SLA violation"
+          description: "System uptime has fallen below the SLA threshold of 99.9% for more than 1 hour (current value: {{ $value | printf \"%.2f\" }}%)."
+          runbook_url: "https://wiki.revolucare.com/runbooks/system-uptime-sla-violation"
+
+  - name: prediction_alerts
+    rules:
+      - alert: DiskSpaceRunningOut
+        expr: predict_linear(node_filesystem_avail_bytes{fstype!="tmpfs", mountpoint="/"}[6h], 24 * 3600) < 0
+        for: 30m
+        labels:
+          severity: warning
+          category: resource
+        annotations:
+          summary: "Disk space running out on {{ $labels.instance }}"
+          description: "Based on recent trends, disk space on {{ $labels.instance }} ({{ $labels.mountpoint }}) is predicted to run out within 24 hours."
+          runbook_url: "https://wiki.revolucare.com/runbooks/disk-space-running-out"
+      
+      - alert: DatabaseConnectionsIncreasing
+        expr: predict_linear(pg_stat_activity_count{datname!~"template.*|postgres"}[1h], 12 * 3600) > pg_settings_max_connections * 0.9
+        for: 30m
+        labels:
+          severity: warning
+          category: resource
+        annotations:
+          summary: "Database connections trending toward limit for {{ $labels.datname }}"
+          description: "Based on recent trends, database {{ $labels.datname }} connections are predicted to exceed 90% of maximum within 12 hours."
+          runbook_url: "https://wiki.revolucare.com/runbooks/database-connections-increasing"
+      
+      - alert: MemoryUsageIncreasing
+        expr: predict_linear(node_memory_MemAvailable_bytes[1h], 6 * 3600) < node_memory_MemTotal_bytes * 0.1
+        for: 30m
+        labels:
+          severity: warning
+          category: resource
+        annotations:
+          summary: "Memory usage trending toward critical on {{ $labels.instance }}"
+          description: "Based on recent trends, available memory on {{ $labels.instance }} is predicted to fall below 10% within 6 hours."
+          runbook_url: "https://wiki.revolucare.com/runbooks/memory-usage-increasing"
