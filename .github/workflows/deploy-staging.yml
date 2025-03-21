@@ -1,0 +1,284 @@
+name: Deploy to Staging
+
+on:
+  workflow_run:
+    workflows: ['Backend CI', 'Web CI']
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      deploy_backend:
+        description: 'Deploy backend services'
+        type: boolean
+        default: true
+      deploy_frontend:
+        description: 'Deploy frontend application'
+        type: boolean
+        default: true
+      deploy_infrastructure:
+        description: 'Update infrastructure'
+        type: boolean
+        default: false
+
+env:
+  NODE_VERSION: '18'
+  PULUMI_VERSION: '3.78.1'
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  ECR_REPOSITORY_BACKEND: 'revolucare-backend'
+  ECR_REPOSITORY_FRONTEND: 'revolucare-frontend'
+  BACKEND_WORKING_DIRECTORY: './src/backend'
+  FRONTEND_WORKING_DIRECTORY: './src/web'
+  INFRASTRUCTURE_WORKING_DIRECTORY: './infrastructure/pulumi'
+  ENVIRONMENT: 'staging'
+
+jobs:
+  check-conditions:
+    name: Check Deployment Conditions
+    runs-on: ubuntu-latest
+    outputs:
+      deploy_backend: ${{ steps.set-conditions.outputs.deploy_backend }}
+      deploy_frontend: ${{ steps.set-conditions.outputs.deploy_frontend }}
+      deploy_infrastructure: ${{ steps.set-conditions.outputs.deploy_infrastructure }}
+    steps:
+      - name: Set deployment conditions
+        id: set-conditions
+        run: |
+          echo "deploy_backend=${{ github.event.inputs.deploy_backend || (github.event_name == 'workflow_run' && github.event.workflow_run.name == 'Backend CI' && github.event.workflow_run.conclusion == 'success') }}" >> $GITHUB_OUTPUT
+          echo "deploy_frontend=${{ github.event.inputs.deploy_frontend || (github.event_name == 'workflow_run' && github.event.workflow_run.name == 'Web CI' && github.event.workflow_run.conclusion == 'success') }}" >> $GITHUB_OUTPUT
+          echo "deploy_infrastructure=${{ github.event.inputs.deploy_infrastructure || false }}" >> $GITHUB_OUTPUT
+
+  deploy-infrastructure:
+    name: Deploy Infrastructure
+    runs-on: ubuntu-latest
+    needs: [check-conditions]
+    if: needs.check-conditions.outputs.deploy_infrastructure == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ env.INFRASTRUCTURE_WORKING_DIRECTORY }}/package-lock.json
+      
+      - name: Install dependencies
+        working-directory: ${{ env.INFRASTRUCTURE_WORKING_DIRECTORY }}
+        run: npm ci
+      
+      - name: Install Pulumi CLI
+        run: curl -fsSL https://get.pulumi.com | sh -s -- --version ${{ env.PULUMI_VERSION }}
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Pulumi preview
+        uses: pulumi/actions@v4
+        with:
+          command: preview
+          stack-name: ${{ env.ENVIRONMENT }}
+          work-dir: ${{ env.INFRASTRUCTURE_WORKING_DIRECTORY }}
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+      
+      - name: Pulumi up
+        uses: pulumi/actions@v4
+        with:
+          command: up
+          stack-name: ${{ env.ENVIRONMENT }}
+          work-dir: ${{ env.INFRASTRUCTURE_WORKING_DIRECTORY }}
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+
+  deploy-backend:
+    name: Deploy Backend
+    runs-on: ubuntu-latest
+    needs: [check-conditions, deploy-infrastructure]
+    if: needs.check-conditions.outputs.deploy_backend == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      
+      - name: Build and push backend image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./src/backend
+          file: ./infrastructure/docker/backend/Dockerfile
+          push: true
+          tags: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_BACKEND }}:${{ env.ENVIRONMENT }}-${{ github.sha }},${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_BACKEND }}:${{ env.ENVIRONMENT }}-latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Create new ECS task definition
+        run: aws ecs register-task-definition --cli-input-json file://infrastructure/ci-cd/taskdef-${{ env.ENVIRONMENT }}.json --family revolucare-backend-${{ env.ENVIRONMENT }}
+      
+      - name: Deploy Blue/Green to ECS
+        run: "aws deploy create-deployment --application-name revolucare-backend-${{ env.ENVIRONMENT }} --deployment-group-name revolucare-backend-${{ env.ENVIRONMENT }}-dg --revision revisionType=AppSpecContent,appSpecContent={content='version: 0.0,Resources: [{TargetService: {Type: AWS::ECS::Service,Properties: {TaskDefinition: revolucare-backend-${{ env.ENVIRONMENT }},LoadBalancerInfo: {ContainerName: revolucare-backend,ContainerPort: 3000}}}}]'}"
+      
+      - name: Wait for deployment to complete
+        run: "aws deploy wait deployment-successful --deployment-id $(aws deploy list-deployments --application-name revolucare-backend-${{ env.ENVIRONMENT }} --deployment-group-name revolucare-backend-${{ env.ENVIRONMENT }}-dg --query 'deployments[0]' --output text)"
+
+  deploy-frontend:
+    name: Deploy Frontend
+    runs-on: ubuntu-latest
+    needs: [check-conditions, deploy-infrastructure]
+    if: needs.check-conditions.outputs.deploy_frontend == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ env.FRONTEND_WORKING_DIRECTORY }}/package-lock.json
+      
+      - name: Install dependencies
+        working-directory: ${{ env.FRONTEND_WORKING_DIRECTORY }}
+        run: npm ci
+      
+      - name: Build application
+        working-directory: ${{ env.FRONTEND_WORKING_DIRECTORY }}
+        run: npm run build
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.STAGING_API_URL }}
+          NEXT_PUBLIC_ENVIRONMENT: ${{ env.ENVIRONMENT }}
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Deploy to Vercel
+        working-directory: ${{ env.FRONTEND_WORKING_DIRECTORY }}
+        run: npx vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --yes
+        env:
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_STAGING_PROJECT_ID }}
+
+  post-deployment-tests:
+    name: Post-Deployment Tests
+    runs-on: ubuntu-latest
+    needs: [deploy-backend, deploy-frontend]
+    if: always() && (needs.deploy-backend.result == 'success' || needs.deploy-frontend.result == 'success')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      
+      - name: Install Playwright
+        run: npx playwright install --with-deps
+      
+      - name: Run smoke tests
+        working-directory: ${{ env.FRONTEND_WORKING_DIRECTORY }}
+        run: npm run test:smoke
+        env:
+          TEST_BASE_URL: ${{ secrets.STAGING_APP_URL }}
+      
+      - name: Check API health
+        run: curl -sSf ${{ secrets.STAGING_API_URL }}/health || exit 1
+      
+      - name: Run integration tests
+        working-directory: ${{ env.FRONTEND_WORKING_DIRECTORY }}
+        run: npm run test:integration
+        env:
+          TEST_BASE_URL: ${{ secrets.STAGING_APP_URL }}
+          TEST_API_URL: ${{ secrets.STAGING_API_URL }}
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: [deploy-backend, deploy-frontend]
+    if: always() && (needs.deploy-backend.result == 'success' || needs.deploy-frontend.result == 'success')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Run OWASP ZAP scan
+        uses: zaproxy/action-baseline@v0.7.0
+        with:
+          target: ${{ secrets.STAGING_APP_URL }}
+      
+      - name: Run API security scan
+        uses: zaproxy/action-api-scan@v0.1.1
+        with:
+          target: ${{ secrets.STAGING_API_URL }}/api-docs
+          format: openapi
+
+  performance-tests:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    needs: [deploy-backend, deploy-frontend]
+    if: always() && (needs.deploy-backend.result == 'success' || needs.deploy-frontend.result == 'success')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Run Lighthouse CI
+        uses: treosh/lighthouse-ci-action@v9
+        with:
+          urls: |
+            ${{ secrets.STAGING_APP_URL }}
+            ${{ secrets.STAGING_APP_URL }}/auth/login
+            ${{ secrets.STAGING_APP_URL }}/dashboard
+          uploadArtifacts: true
+          temporaryPublicStorage: true
+      
+      - name: Run load tests
+        run: npm install -g artillery && artillery run infrastructure/monitoring/load-test.yml
+        env:
+          TARGET_URL: ${{ secrets.STAGING_API_URL }}
+
+  create-production-approval:
+    name: Create Production Approval
+    runs-on: ubuntu-latest
+    needs: [post-deployment-tests, security-scan, performance-tests]
+    if: success()
+    steps:
+      - name: Create approval issue
+        uses: actions/github-script@v6
+        with:
+          script: "const { data: issue } = await github.rest.issues.create({\n  owner: context.repo.owner,\n  repo: context.repo.repo,\n  title: `Production Deployment Approval - ${context.sha.substring(0, 7)}`,\n  body: `## Production Deployment Request\n\n**Commit:** ${context.sha}\n**Workflow:** ${context.workflow}\n**Build:** [${context.runId}](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})\n\n### Staging Validation Results\n- Post-Deployment Tests: ${context.needs['post-deployment-tests'].result}\n- Security Scan: ${context.needs['security-scan'].result}\n- Performance Tests: ${context.needs['performance-tests'].result}\n\n### Changes Included\n\n<!-- Add a summary of changes included in this deployment -->\n\n### Deployment Plan\n- [ ] Backend Deployment\n- [ ] Frontend Deployment\n- [ ] Infrastructure Updates\n\n### Approval\nAdd the 'approved-for-production' label to approve this deployment for production.\n`,\n  labels: ['deployment', 'needs-review']\n});\n\nconsole.log(`Created issue #${issue.number}: ${issue.html_url}`);"
+
+  deployment-summary:
+    name: Deployment Summary
+    runs-on: ubuntu-latest
+    needs: [deploy-infrastructure, deploy-backend, deploy-frontend, post-deployment-tests, security-scan, performance-tests, create-production-approval]
+    if: always()
+    steps:
+      - name: Summarize deployment
+        run: echo "Deployment to staging environment completed.\nInfrastructure: ${{ needs.deploy-infrastructure.result || 'skipped' }}\nBackend: ${{ needs.deploy-backend.result || 'skipped' }}\nFrontend: ${{ needs.deploy-frontend.result || 'skipped' }}\nPost-deployment tests: ${{ needs.post-deployment-tests.result || 'skipped' }}\nSecurity scan: ${{ needs.security-scan.result || 'skipped' }}\nPerformance tests: ${{ needs.performance-tests.result || 'skipped' }}\nProduction approval: ${{ needs.create-production-approval.result || 'skipped' }}"
+      
+      - name: Notify on failure
+        if: contains(needs.*.result, 'failure')
+        run: echo "::error::Deployment to staging environment failed. Please check the logs for details."
+      
+      - name: Create deployment record
+        uses: actions/github-script@v6
+        with:
+          script: "const deployment = {\n  environment: 'staging',\n  sha: context.sha,\n  workflow: context.workflow,\n  runId: context.runId,\n  status: !contains(Object.values(context.needs).map(n => n.result), 'failure') ? 'success' : 'failure',\n  timestamp: new Date().toISOString(),\n  infrastructure: context.needs['deploy-infrastructure']?.result || 'skipped',\n  backend: context.needs['deploy-backend']?.result || 'skipped',\n  frontend: context.needs['deploy-frontend']?.result || 'skipped',\n  tests: context.needs['post-deployment-tests']?.result || 'skipped',\n  security: context.needs['security-scan']?.result || 'skipped',\n  performance: context.needs['performance-tests']?.result || 'skipped',\n  productionApproval: context.needs['create-production-approval']?.result || 'skipped'\n};\n\nawait github.rest.repos.createOrUpdateFileContents({\n  owner: context.repo.owner,\n  repo: context.repo.repo,\n  path: `deployments/staging/${context.sha}.json`,\n  message: `Deployment record for staging - ${context.sha}`,\n  content: Buffer.from(JSON.stringify(deployment, null, 2)).toString('base64'),\n  committer: {\n    name: 'GitHub Actions',\n    email: 'actions@github.com'\n  }\n});"
