@@ -1,0 +1,1 @@
+# src/backend/tests/integration/api/providers.api.test.ts
