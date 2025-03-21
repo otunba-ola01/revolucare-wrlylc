@@ -1,0 +1,445 @@
+name: Deploy to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      deploy_backend:
+        description: 'Deploy backend services'
+        type: boolean
+        default: true
+      deploy_frontend:
+        description: 'Deploy frontend application'
+        type: boolean
+        default: true
+      deploy_infrastructure:
+        description: 'Update infrastructure'
+        type: boolean
+        default: false
+      approval_issue:
+        description: 'Production approval issue number'
+        type: string
+        required: true
+  issues:
+    types: [labeled]
+    branches: [main]
+
+env:
+  NODE_VERSION: '18'
+  PULUMI_VERSION: '3.78.1'
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  ECR_REPOSITORY_BACKEND: 'revolucare-backend'
+  ECR_REPOSITORY_FRONTEND: 'revolucare-frontend'
+  BACKEND_WORKING_DIRECTORY: './src/backend'
+  FRONTEND_WORKING_DIRECTORY: './src/web'
+  INFRASTRUCTURE_WORKING_DIRECTORY: './infrastructure/pulumi'
+  ENVIRONMENT: 'prod'
+
+jobs:
+  check-approval:
+    name: Check Deployment Approval
+    runs-on: ubuntu-latest
+    outputs:
+      approved: ${{ steps.check-label.outputs.approved }}
+      deploy_backend: ${{ steps.get-deployment-options.outputs.deploy_backend }}
+      deploy_frontend: ${{ steps.get-deployment-options.outputs.deploy_frontend }}
+      deploy_infrastructure: ${{ steps.get-deployment-options.outputs.deploy_infrastructure }}
+      commit_sha: ${{ steps.get-deployment-options.outputs.commit_sha }}
+    steps:
+      - name: Check approval label
+        id: check-label
+        if: github.event_name == 'issues' && github.event.label.name == 'approved-for-production'
+        run: echo "approved=true" >> $GITHUB_OUTPUT
+
+      - name: Check manual approval
+        id: check-manual
+        if: github.event_name == 'workflow_dispatch'
+        run: echo "approved=true" >> $GITHUB_OUTPUT
+
+      - name: Get deployment options from issue
+        id: get-deployment-options
+        if: github.event_name == 'issues' && github.event.label.name == 'approved-for-production'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const issue = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            });
+
+            const issueBody = issue.data.body;
+
+            // Extract commit SHA from issue body
+            const commitMatch = issueBody.match(/\*\*Commit:\*\* ([a-f0-9]+)/);
+            const commitSha = commitMatch ? commitMatch[1] : '';
+
+            // Extract deployment options from checkboxes
+            const backendMatch = issueBody.match(/- \[(x|X)\] Backend Deployment/);
+            const frontendMatch = issueBody.match(/- \[(x|X)\] Frontend Deployment/);
+            const infrastructureMatch = issueBody.match(/- \[(x|X)\] Infrastructure Updates/);
+
+            const deployBackend = backendMatch !== null;
+            const deployFrontend = frontendMatch !== null;
+            const deployInfrastructure = infrastructureMatch !== null;
+
+            core.setOutput('deploy_backend', deployBackend.toString());
+            core.setOutput('deploy_frontend', deployFrontend.toString());
+            core.setOutput('deploy_infrastructure', deployInfrastructure.toString());
+            core.setOutput('commit_sha', commitSha);
+
+      - name: Get deployment options from workflow dispatch
+        id: get-manual-options
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          echo "deploy_backend=${{ github.event.inputs.deploy_backend }}" >> $GITHUB_OUTPUT
+          echo "deploy_frontend=${{ github.event.inputs.deploy_frontend }}" >> $GITHUB_OUTPUT
+          echo "deploy_infrastructure=${{ github.event.inputs.deploy_infrastructure }}" >> $GITHUB_OUTPUT
+          echo "commit_sha=${{ github.sha }}" >> $GITHUB_OUTPUT
+
+      - name: Verify approval
+        if: steps.check-label.outputs.approved != 'true' && steps.check-manual.outputs.approved != 'true'
+        run: |
+          echo "::error::Deployment not approved. Add the 'approved-for-production' label to the issue or use manual workflow dispatch."
+          exit 1
+
+  pre-deployment-validation:
+    name: Pre-Deployment Validation
+    runs-on: ubuntu-latest
+    needs: [check-approval]
+    if: needs.check-approval.outputs.approved == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ needs.check-approval.outputs.commit_sha }}
+
+      - name: Verify staging deployment success
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            const deploymentPath = path.join('deployments', 'staging', '${{ needs.check-approval.outputs.commit_sha }}.json');
+
+            if (!fs.existsSync(deploymentPath)) {
+              core.setFailed(`No staging deployment record found for commit ${{ needs.check-approval.outputs.commit_sha }}`);
+              return;
+            }
+
+            const deploymentRecord = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'));
+
+            if (deploymentRecord.status !== 'success') {
+              core.setFailed(`Staging deployment for commit ${{ needs.check-approval.outputs.commit_sha }} was not successful. Status: ${deploymentRecord.status}`);
+              return;
+            }
+
+            if (deploymentRecord.tests !== 'success') {
+              core.setFailed(`Post-deployment tests for staging were not successful. Status: ${deploymentRecord.tests}`);
+              return;
+            }
+
+            if (deploymentRecord.security !== 'success') {
+              core.setFailed(`Security scan for staging was not successful. Status: ${deploymentRecord.security}`);
+              return;
+            }
+
+            if (deploymentRecord.performance !== 'success') {
+              core.setFailed(`Performance tests for staging were not successful. Status: ${deploymentRecord.performance}`);
+              return;
+            }
+
+            console.log('Staging deployment validation successful. Proceeding with production deployment.');
+
+      - name: Notify deployment start
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const issueNumber = context.payload.issue?.number || context.payload.inputs?.approval_issue;
+
+            if (issueNumber) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                body: `## Production Deployment Started
+
+            Deployment to production has been initiated for commit ${{ needs.check-approval.outputs.commit_sha }}.
+
+            Workflow run: [${context.runId}](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})
+
+            ### Deployment Options
+            - Backend: ${{ needs.check-approval.outputs.deploy_backend }}
+            - Frontend: ${{ needs.check-approval.outputs.deploy_frontend }}
+            - Infrastructure: ${{ needs.check-approval.outputs.deploy_infrastructure }}
+            `
+              });
+            }
+
+  deploy-infrastructure:
+    name: Deploy Infrastructure
+    runs-on: ubuntu-latest
+    needs: [check-approval, pre-deployment-validation]
+    if: needs.check-approval.outputs.approved == 'true' && needs.check-approval.outputs.deploy_infrastructure == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ needs.check-approval.outputs.commit_sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: '${{ env.INFRASTRUCTURE_WORKING_DIRECTORY }}/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: ${{ env.INFRASTRUCTURE_WORKING_DIRECTORY }}
+        run: npm ci
+
+      - name: Install Pulumi CLI
+        run: curl -fsSL https://get.pulumi.com | sh -s -- --version ${{ env.PULUMI_VERSION }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Pulumi preview
+        uses: pulumi/actions@v4
+        with:
+          command: preview
+          stack-name: ${{ env.ENVIRONMENT }}
+          work-dir: ${{ env.INFRASTRUCTURE_WORKING_DIRECTORY }}
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+
+      - name: Pulumi up
+        uses: pulumi/actions@v4
+        with:
+          command: up
+          stack-name: ${{ env.ENVIRONMENT }}
+          work-dir: ${{ env.INFRASTRUCTURE_WORKING_DIRECTORY }}
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+
+  deploy-backend:
+    name: Deploy Backend
+    runs-on: ubuntu-latest
+    needs: [check-approval, pre-deployment-validation, deploy-infrastructure]
+    if: needs.check-approval.outputs.approved == 'true' && needs.check-approval.outputs.deploy_backend == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ needs.check-approval.outputs.commit_sha }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./src/backend
+          file: ./infrastructure/docker/backend/Dockerfile
+          push: true
+          tags: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_BACKEND }}:${{ env.ENVIRONMENT }}-${{ needs.check-approval.outputs.commit_sha }},${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_BACKEND }}:${{ env.ENVIRONMENT }}-latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Create new ECS task definition
+        run: aws ecs register-task-definition --cli-input-json file://infrastructure/ci-cd/taskdef-${{ env.ENVIRONMENT }}.json --family revolucare-backend-${{ env.ENVIRONMENT }}
+
+      - name: Deploy Blue/Green to ECS
+        run: |
+          aws deploy create-deployment \
+            --application-name revolucare-backend-${{ env.ENVIRONMENT }} \
+            --deployment-group-name revolucare-backend-${{ env.ENVIRONMENT }}-dg \
+            --revision revisionType=AppSpecContent,appSpecContent={content='version: 0.0,Resources: [{TargetService: {Type: AWS::ECS::Service,Properties: {TaskDefinition: revolucare-backend-${{ env.ENVIRONMENT }},LoadBalancerInfo: {ContainerName: revolucare-backend,ContainerPort: 3000}}}}]'}
+
+      - name: Wait for deployment to complete
+        run: |
+          aws deploy wait deployment-successful \
+            --deployment-id $(aws deploy list-deployments \
+              --application-name revolucare-backend-${{ env.ENVIRONMENT }} \
+              --deployment-group-name revolucare-backend-${{ env.ENVIRONMENT }}-dg \
+              --query 'deployments[0]' \
+              --output text)
+
+  deploy-frontend:
+    name: Deploy Frontend
+    runs-on: ubuntu-latest
+    needs: [check-approval, pre-deployment-validation, deploy-infrastructure]
+    if: needs.check-approval.outputs.approved == 'true' && needs.check-approval.outputs.deploy_frontend == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ needs.check-approval.outputs.commit_sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: '${{ env.FRONTEND_WORKING_DIRECTORY }}/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: ${{ env.FRONTEND_WORKING_DIRECTORY }}
+        run: npm ci
+
+      - name: Build application
+        working-directory: ${{ env.FRONTEND_WORKING_DIRECTORY }}
+        run: npm run build
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.PROD_API_URL }}
+          NEXT_PUBLIC_ENVIRONMENT: ${{ env.ENVIRONMENT }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy to Vercel
+        working-directory: ${{ env.FRONTEND_WORKING_DIRECTORY }}
+        run: npx vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --yes
+        env:
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROD_PROJECT_ID }}
+
+  post-deployment-validation:
+    name: Post-Deployment Validation
+    runs-on: ubuntu-latest
+    needs: [deploy-backend, deploy-frontend]
+    if: always() && (needs.deploy-backend.result == 'success' || needs.deploy-frontend.result == 'success')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ needs.check-approval.outputs.commit_sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Playwright
+        run: npx playwright install --with-deps
+
+      - name: Run smoke tests
+        working-directory: ${{ env.FRONTEND_WORKING_DIRECTORY }}
+        run: npm run test:smoke
+        env:
+          TEST_BASE_URL: ${{ secrets.PROD_APP_URL }}
+
+      - name: Check API health
+        run: curl -sSf ${{ secrets.PROD_API_URL }}/health || exit 1
+
+      - name: Verify critical user journeys
+        working-directory: ${{ env.FRONTEND_WORKING_DIRECTORY }}
+        run: npm run test:critical-paths
+        env:
+          TEST_BASE_URL: ${{ secrets.PROD_APP_URL }}
+
+  deployment-summary:
+    name: Deployment Summary
+    runs-on: ubuntu-latest
+    needs: [check-approval, deploy-infrastructure, deploy-backend, deploy-frontend, post-deployment-validation]
+    if: always() && needs.check-approval.outputs.approved == 'true'
+    steps:
+      - name: Summarize deployment
+        run: |
+          echo "Deployment to production environment completed.
+          Infrastructure: ${{ needs.deploy-infrastructure.result || 'skipped' }}
+          Backend: ${{ needs.deploy-backend.result || 'skipped' }}
+          Frontend: ${{ needs.deploy-frontend.result || 'skipped' }}
+          Post-deployment validation: ${{ needs.post-deployment-validation.result || 'skipped' }}"
+
+      - name: Notify on failure
+        if: contains(needs.*.result, 'failure')
+        run: echo "::error::Deployment to production environment failed. Please check the logs for details."
+
+      - name: Update approval issue
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const issueNumber = context.payload.issue?.number || context.payload.inputs?.approval_issue;
+
+            if (issueNumber) {
+              const deploymentStatus = !contains(Object.values(context.needs).map(n => n.result), 'failure') ? 'success' : 'failure';
+              
+              let statusEmoji = deploymentStatus === 'success' ? '✅' : '❌';
+              
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                body: `## Production Deployment ${statusEmoji}
+
+            Deployment to production has been completed with status: **${deploymentStatus}**
+
+            Workflow run: [${context.runId}](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})
+
+            ### Component Status
+            - Infrastructure: ${context.needs['deploy-infrastructure']?.result || 'skipped'}
+            - Backend: ${context.needs['deploy-backend']?.result || 'skipped'}
+            - Frontend: ${context.needs['deploy-frontend']?.result || 'skipped'}
+            - Validation: ${context.needs['post-deployment-validation']?.result || 'skipped'}
+
+            ${deploymentStatus === 'success' ? '🎉 Production deployment successful!' : '⚠️ Production deployment encountered issues. Please check the workflow logs for details.'}`
+              });
+              
+              if (deploymentStatus === 'success') {
+                await github.rest.issues.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  state: 'closed',
+                  state_reason: 'completed'
+                });
+              }
+            }
+
+      - name: Create deployment record
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const deployment = {
+              environment: 'production',
+              sha: context.needs.check-approval.outputs.commit_sha,
+              workflow: context.workflow,
+              runId: context.runId,
+              status: !contains(Object.values(context.needs).map(n => n.result), 'failure') ? 'success' : 'failure',
+              timestamp: new Date().toISOString(),
+              infrastructure: context.needs['deploy-infrastructure']?.result || 'skipped',
+              backend: context.needs['deploy-backend']?.result || 'skipped',
+              frontend: context.needs['deploy-frontend']?.result || 'skipped',
+              validation: context.needs['post-deployment-validation']?.result || 'skipped'
+            };
+
+            await github.rest.repos.createOrUpdateFileContents({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              path: `deployments/production/${context.needs.check-approval.outputs.commit_sha}.json`,
+              message: `Deployment record for production - ${context.needs.check-approval.outputs.commit_sha}`,
+              content: Buffer.from(JSON.stringify(deployment, null, 2)).toString('base64'),
+              committer: {
+                name: 'GitHub Actions',
+                email: 'actions@github.com'
+              }
+            });
