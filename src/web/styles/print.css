@@ -1,0 +1,397 @@
+/* 
+ * Revolucare Print Stylesheet v1.0.0
+ * This stylesheet contains print-specific styles to optimize how the Revolucare platform
+ * renders when printed. It handles layout adjustments, ink optimization, and ensures
+ * important documents like care plans and service plans print properly.
+ */
+
+@media print {
+  /* Basic page setup */
+  @page {
+    size: letter;
+    margin: 0.5in;
+  }
+
+  html {
+    font-size: 12pt;
+  }
+
+  body {
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    background-color: white;
+    color: black;
+    font-size: 12pt;
+    line-height: 1.5;
+  }
+
+  /* Layout adjustments */
+  .container, .page-container, .main-content {
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    max-width: none;
+  }
+
+  .grid-container {
+    display: block;
+  }
+
+  header, footer, nav, .sidebar, .mobile-nav {
+    display: none !important;
+  }
+
+  main {
+    display: block;
+    width: 100%;
+  }
+
+  /* Page break controls */
+  .page-break {
+    page-break-after: always;
+    break-after: page;
+  }
+
+  .no-page-break {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Typography adjustments */
+  h1, h2, h3, h4, h5, h6 {
+    color: black;
+    page-break-after: avoid;
+    break-after: avoid;
+  }
+
+  h1 {
+    font-size: 24pt;
+    margin-top: 24pt;
+    margin-bottom: 6pt;
+  }
+
+  h2 {
+    font-size: 18pt;
+    margin-top: 18pt;
+    margin-bottom: 6pt;
+  }
+
+  h3 {
+    font-size: 14pt;
+    margin-top: 14pt;
+    margin-bottom: 6pt;
+  }
+
+  h4, h5, h6 {
+    font-size: 12pt;
+    margin-top: 12pt;
+    margin-bottom: 6pt;
+  }
+
+  p, li {
+    font-size: 12pt;
+    orphans: 3;
+    widows: 3;
+  }
+
+  a {
+    color: black;
+    text-decoration: none;
+    font-weight: bold;
+  }
+
+  a[href^='http']:after {
+    content: ' (' attr(href) ')';
+    font-size: 10pt;
+    font-style: italic;
+    font-weight: normal;
+  }
+
+  /* Component adjustments */
+  .card {
+    border: 1px solid #ddd;
+    box-shadow: none;
+    break-inside: avoid;
+    margin-bottom: 16pt;
+    padding: 12pt;
+  }
+
+  .badge {
+    border: 1px solid #000;
+    background: none !important;
+    color: black !important;
+  }
+
+  .badge-primary, .badge-secondary, .badge-success, .badge-warning, .badge-error {
+    background: none !important;
+    color: black !important;
+    border: 1px solid #000;
+  }
+
+  button, .button, [type='button'], [type='submit'], [type='reset'] {
+    display: none !important;
+  }
+
+  input, textarea, select {
+    border: 1px solid #ddd;
+    background: white;
+    color: black;
+  }
+
+  input[type='checkbox'], input[type='radio'] {
+    appearance: none;
+    border: 1px solid black;
+    width: 12pt;
+    height: 12pt;
+    position: relative;
+  }
+
+  input[type='checkbox']:checked:after, input[type='radio']:checked:after {
+    content: '✓';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    text-align: center;
+    color: black;
+  }
+
+  /* Table adjustments */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 16pt;
+  }
+
+  th {
+    background-color: #f0f0f0 !important;
+    color: black;
+    border-bottom: 1pt solid black;
+    text-align: left;
+    padding: 6pt;
+  }
+
+  td {
+    border-bottom: 1pt solid #ddd;
+    padding: 6pt;
+    text-align: left;
+  }
+
+  tr {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tfoot {
+    display: table-footer-group;
+  }
+
+  /* Image adjustments */
+  img {
+    max-width: 100% !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .avatar {
+    border: 1pt solid #ddd;
+    max-width: 1in !important;
+    max-height: 1in !important;
+  }
+
+  svg {
+    max-width: 100% !important;
+    max-height: 3in;
+  }
+
+  .chart, .graph {
+    max-width: 100% !important;
+    max-height: 4in;
+    break-inside: avoid;
+  }
+
+  /* Color adjustments */
+  * {
+    color-adjust: exact;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .text-primary, .text-secondary, .text-accent {
+    color: black !important;
+  }
+
+  .bg-primary, .bg-secondary, .bg-accent, .bg-muted {
+    background: none !important;
+    background-color: white !important;
+  }
+
+  .border-primary, .border-secondary, .border-accent {
+    border-color: #ddd !important;
+  }
+
+  /* Care plan specific styles */
+  .care-plan-header {
+    border-bottom: 2pt solid black;
+    margin-bottom: 16pt;
+    padding-bottom: 8pt;
+  }
+
+  .care-plan-section {
+    margin-bottom: 16pt;
+    break-inside: avoid;
+  }
+
+  .care-plan-goals {
+    margin-bottom: 16pt;
+  }
+
+  .care-plan-interventions {
+    margin-bottom: 16pt;
+  }
+
+  .care-plan-footer {
+    margin-top: 24pt;
+    border-top: 1pt solid black;
+    padding-top: 8pt;
+    font-size: 10pt;
+  }
+
+  .confidence-score {
+    display: none !important;
+  }
+
+  /* Services plan specific styles */
+  .services-plan-header {
+    border-bottom: 2pt solid black;
+    margin-bottom: 16pt;
+    padding-bottom: 8pt;
+  }
+
+  .service-item {
+    border-bottom: 1pt solid #ddd;
+    padding-bottom: 8pt;
+    margin-bottom: 8pt;
+    break-inside: avoid;
+  }
+
+  .funding-sources {
+    border-top: 1pt solid #ddd;
+    margin-top: 16pt;
+    padding-top: 8pt;
+  }
+
+  .cost-estimate {
+    font-weight: bold;
+    margin-top: 16pt;
+  }
+
+  /* Provider specific styles */
+  .provider-profile {
+    break-inside: avoid;
+  }
+
+  .provider-contact {
+    font-size: 11pt;
+    margin-bottom: 8pt;
+  }
+
+  .provider-services {
+    margin-bottom: 8pt;
+  }
+
+  .provider-availability {
+    display: none !important;
+  }
+
+  .provider-reviews {
+    display: none !important;
+  }
+
+  .compatibility-score {
+    display: none !important;
+  }
+
+  .service-area-map {
+    display: none !important;
+  }
+
+  /* Elements to hide in print view */
+  .no-print, .notification-bell, .user-menu, .search-bar, .filter-bar, .pagination {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  video, audio, canvas, iframe, .map-container {
+    display: none !important;
+  }
+
+  .loading-spinner, .skeleton {
+    display: none !important;
+  }
+
+  .dialog-overlay, .dialog-content, .dropdown-menu {
+    display: none !important;
+  }
+
+  /* Print header and footer */
+  .print-header {
+    display: block !important;
+    text-align: center;
+    margin-bottom: 24pt;
+    border-bottom: 1pt solid black;
+    padding-bottom: 8pt;
+  }
+
+  .print-footer {
+    display: block !important;
+    text-align: center;
+    margin-top: 24pt;
+    border-top: 1pt solid black;
+    padding-top: 8pt;
+    font-size: 10pt;
+  }
+
+  .print-date {
+    font-size: 10pt;
+    text-align: right;
+    margin-bottom: 16pt;
+  }
+
+  .print-logo {
+    display: block !important;
+    max-height: 0.5in;
+    margin-bottom: 12pt;
+  }
+
+  /* Accessibility considerations */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+
+  .print-sr-only {
+    display: none !important;
+  }
+
+  .high-contrast {
+    color: black !important;
+    background-color: white !important;
+    border: 1pt solid black !important;
+  }
+}
