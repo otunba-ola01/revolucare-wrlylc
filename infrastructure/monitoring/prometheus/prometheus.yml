@@ -1,0 +1,227 @@
+# prometheus.yml - Revolucare monitoring configuration
+# Version: 2.45.0
+#
+# This file configures the monitoring setup for the Revolucare platform.
+# It defines scrape targets, alerting rules, storage settings, and external integrations.
+#
+# Integrated with:
+# - AlertManager v0.25.0
+# - Node Exporter v1.5.0
+# - Various service exporters
+
+# Global configuration applies to all components of Prometheus
+global:
+  scrape_interval: 15s     # How frequently to scrape targets
+  scrape_timeout: 10s      # How long until a scrape request times out
+  evaluation_interval: 15s # How frequently to evaluate rules
+  external_labels:
+    monitor: 'revolucare-prometheus'
+    environment: '${ENVIRONMENT}' # Replaced at runtime
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+      scheme: 'http'
+      timeout: '5s'
+      api_version: 'v2'
+
+# Load alert rules from files
+rule_files:
+  - 'alert-rules.yml'
+
+# Scrape configurations
+scrape_configs:
+  # Self-monitoring - Prometheus itself
+  - job_name: 'prometheus'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['localhost:9090']
+    metrics_path: '/metrics'
+
+  # Node exporter for system metrics
+  - job_name: 'node_exporter'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['node-exporter:9100']
+    relabel_configs:
+      - source_labels: ['__address__']
+        target_label: 'instance'
+        regex: '(.*):.*'
+        replacement: '$1'
+
+  # Revolucare backend API metrics
+  - job_name: 'revolucare_backend'
+    scrape_interval: 15s
+    metrics_path: '/metrics'
+    scheme: 'http'
+    static_configs:
+      - targets: ['revolucare-backend:3000']
+        labels:
+          service: 'backend'
+          component: 'api'
+
+  # Revolucare worker metrics
+  - job_name: 'revolucare_workers'
+    scrape_interval: 15s
+    metrics_path: '/metrics'
+    scheme: 'http'
+    static_configs:
+      - targets: ['revolucare-worker:3000']
+        labels:
+          service: 'worker'
+          component: 'background'
+
+  # PostgreSQL metrics via exporter
+  - job_name: 'postgresql'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+        labels:
+          service: 'database'
+          component: 'postgresql'
+
+  # Redis metrics via exporter
+  - job_name: 'redis'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['redis-exporter:9121']
+        labels:
+          service: 'cache'
+          component: 'redis'
+
+  # Blackbox exporter for endpoint monitoring
+  - job_name: 'blackbox'
+    metrics_path: '/probe'
+    params:
+      module: ['http_2xx']
+    static_configs:
+      - targets:
+        - 'https://revolucare.com/api/health'
+        - 'https://revolucare.com/api/auth/health'
+        - 'https://revolucare.com/api/care-plans/health'
+        - 'https://revolucare.com/api/providers/health'
+        - 'https://revolucare.com/api/services-plans/health'
+        labels:
+          service: 'api'
+          component: 'endpoint'
+    relabel_configs:
+      - source_labels: ['__address__']
+        target_label: 'instance'
+        regex: 'https?://([^:/]+).*'
+        replacement: '$1'
+      - source_labels: ['__address__']
+        target_label: '__param_target'
+      - source_labels: ['__param_target']
+        target_label: 'target'
+      - target_label: '__address__'
+        replacement: 'blackbox-exporter:9115'
+
+  # External services monitoring
+  - job_name: 'external_services'
+    scrape_interval: 1m
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['external-service-monitor:9091']
+        labels:
+          service: 'external'
+          component: 'integration'
+
+  # Kubernetes pods auto-discovery (for containerized deployments)
+  - job_name: 'kubernetes_pods'
+    kubernetes_sd_configs:
+      - role: 'pod'
+        namespaces:
+          names: ['revolucare']
+    relabel_configs:
+      - source_labels: ['__meta_kubernetes_pod_annotation_prometheus_io_scrape']
+        action: 'keep'
+        regex: 'true'
+      - source_labels: ['__meta_kubernetes_pod_annotation_prometheus_io_path']
+        action: 'replace'
+        target_label: '__metrics_path__'
+        regex: '(.+)'
+      - source_labels: ['__address__', '__meta_kubernetes_pod_annotation_prometheus_io_port']
+        action: 'replace'
+        regex: '([^:]+)(?::\d+)?;(\d+)'
+        replacement: '$1:$2'
+        target_label: '__address__'
+      - source_labels: ['__meta_kubernetes_pod_label_app']
+        action: 'replace'
+        target_label: 'app'
+      - source_labels: ['__meta_kubernetes_pod_label_component']
+        action: 'replace'
+        target_label: 'component'
+      - source_labels: ['__meta_kubernetes_pod_name']
+        action: 'replace'
+        target_label: 'pod'
+      - source_labels: ['__meta_kubernetes_namespace']
+        action: 'replace'
+        target_label: 'namespace'
+
+# Storage configuration
+storage_config:
+  tsdb:
+    path: '/prometheus'
+    retention_time: '15d'
+    min_block_duration: '2h'
+    max_block_duration: '24h'
+
+# Remote write configuration for long-term storage
+remote_write:
+  - url: '${REMOTE_WRITE_URL}'
+    remote_timeout: '30s'
+    queue_config:
+      capacity: 10000
+      max_shards: 200
+      max_samples_per_send: 500
+    write_relabel_configs:
+      - source_labels: ['__name__']
+        regex: 'up|node_.*|http_.*|revolucare_.*|pg_.*|redis_.*'
+        action: 'keep'
+
+# Remote read configuration for historical data
+remote_read:
+  - url: '${REMOTE_READ_URL}'
+    read_recent: true
+    required_matchers:
+      env: 'prod'
+
+# Web interface configuration
+web_config:
+  page_title: 'Revolucare Prometheus'
+  external_url: 'https://prometheus.revolucare.com'
+  http_server_timeout: '30s'
+
+# Tracing configuration
+tracing_config:
+  endpoint: '${TEMPO_ENDPOINT}'
+  sampling_fraction: 0.1
+  insecure: false
+
+# Environment-specific settings
+# These settings are processed by the configuration management system
+# to generate environment-specific configurations
+environment_specific_settings:
+  development:
+    scrape_interval: 30s
+    evaluation_interval: 30s
+    storage_retention: 7d
+    remote_write_enabled: false
+  
+  staging:
+    scrape_interval: 15s
+    evaluation_interval: 15s
+    storage_retention: 15d
+    remote_write_enabled: true
+  
+  production:
+    scrape_interval: 15s
+    evaluation_interval: 15s
+    storage_retention: 30d
+    remote_write_enabled: true
+
+# Exports:
+# prometheus_server_url: https://prometheus.revolucare.com
+# This URL is used by other components to connect to Prometheus
