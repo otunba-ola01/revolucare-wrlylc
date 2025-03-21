@@ -1,0 +1,430 @@
+/**
+ * animations.css
+ * 
+ * This file defines reusable CSS animations and transitions for the Revolucare platform.
+ * It contains standardized animation keyframes, durations, and timing functions
+ * to ensure consistent motion design across the application.
+ * 
+ * Accessibility: Supports reduced motion preferences for users with vestibular disorders
+ * or motion sensitivity through the prefers-reduced-motion media query.
+ */
+
+/* Animation Variables
+ * ------------------
+ * Defines standard durations and easing functions for consistent animations
+ */
+:root {
+  --animation-duration-fast: 150ms;
+  --animation-duration-medium: 300ms;
+  --animation-duration-slow: 500ms;
+  --animation-easing-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --animation-easing-accelerate: cubic-bezier(0.4, 0, 1, 1);
+  --animation-easing-decelerate: cubic-bezier(0, 0, 0.2, 1);
+}
+
+/* Reduced Motion
+ * -------------
+ * Respects user's preference for reduced motion by setting
+ * animation durations to near-zero when prefers-reduced-motion is enabled
+ */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --animation-duration-fast: 0.01ms;
+    --animation-duration-medium: 0.01ms;
+    --animation-duration-slow: 0.01ms;
+  }
+}
+
+/* Fade Animations
+ * --------------
+ * Simple opacity transitions for showing/hiding elements
+ */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+.animate-fade-in {
+  animation: fadeIn var(--animation-duration-medium) var(--animation-easing-standard) forwards;
+}
+
+.animate-fade-out {
+  animation: fadeOut var(--animation-duration-medium) var(--animation-easing-standard) forwards;
+}
+
+/* Slide Animations
+ * --------------
+ * Directional slide transitions for elements entering/exiting the viewport
+ */
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes slideOutRight {
+  from { transform: translateX(0); }
+  to { transform: translateX(100%); }
+}
+
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes slideOutLeft {
+  from { transform: translateX(0); }
+  to { transform: translateX(-100%); }
+}
+
+@keyframes slideInUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes slideOutUp {
+  from { transform: translateY(0); }
+  to { transform: translateY(-100%); }
+}
+
+@keyframes slideInDown {
+  from { transform: translateY(-100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes slideOutDown {
+  from { transform: translateY(0); }
+  to { transform: translateY(100%); }
+}
+
+.animate-slide-in-right {
+  animation: slideInRight var(--animation-duration-medium) var(--animation-easing-decelerate) forwards;
+}
+
+.animate-slide-out-right {
+  animation: slideOutRight var(--animation-duration-medium) var(--animation-easing-accelerate) forwards;
+}
+
+.animate-slide-in-left {
+  animation: slideInLeft var(--animation-duration-medium) var(--animation-easing-decelerate) forwards;
+}
+
+.animate-slide-out-left {
+  animation: slideOutLeft var(--animation-duration-medium) var(--animation-easing-accelerate) forwards;
+}
+
+.animate-slide-in-up {
+  animation: slideInUp var(--animation-duration-medium) var(--animation-easing-decelerate) forwards;
+}
+
+.animate-slide-out-up {
+  animation: slideOutUp var(--animation-duration-medium) var(--animation-easing-accelerate) forwards;
+}
+
+.animate-slide-in-down {
+  animation: slideInDown var(--animation-duration-medium) var(--animation-easing-decelerate) forwards;
+}
+
+.animate-slide-out-down {
+  animation: slideOutDown var(--animation-duration-medium) var(--animation-easing-accelerate) forwards;
+}
+
+/* Scale Animations
+ * --------------
+ * Size transitions with opacity for elements entering/exiting
+ */
+@keyframes scaleIn {
+  from { transform: scale(0.95); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+@keyframes scaleOut {
+  from { transform: scale(1); opacity: 1; }
+  to { transform: scale(0.95); opacity: 0; }
+}
+
+.animate-scale-in {
+  animation: scaleIn var(--animation-duration-medium) var(--animation-easing-decelerate) forwards;
+}
+
+.animate-scale-out {
+  animation: scaleOut var(--animation-duration-medium) var(--animation-easing-accelerate) forwards;
+}
+
+/* Toast Animations
+ * --------------
+ * Specialized animations for toast notification components
+ */
+@keyframes toastSlideIn {
+  from { transform: translateX(calc(100% + 1rem)); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes toastSlideOut {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(calc(100% + 1rem)); opacity: 0; }
+}
+
+.toast-enter {
+  animation: toastSlideIn var(--animation-duration-medium) var(--animation-easing-decelerate) forwards;
+}
+
+.toast-exit {
+  animation: toastSlideOut var(--animation-duration-medium) var(--animation-easing-accelerate) forwards;
+}
+
+/* Dialog Animations
+ * --------------
+ * Animations for modal dialogs, including overlay and content
+ */
+@keyframes dialogOverlayShow {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes dialogOverlayHide {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes dialogContentShow {
+  from { opacity: 0; transform: translate(-50%, -48%) scale(0.96); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes dialogContentHide {
+  from { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  to { opacity: 0; transform: translate(-50%, -48%) scale(0.96); }
+}
+
+.dialog-overlay-enter {
+  animation: dialogOverlayShow var(--animation-duration-medium) var(--animation-easing-standard) forwards;
+}
+
+.dialog-overlay-exit {
+  animation: dialogOverlayHide var(--animation-duration-fast) var(--animation-easing-standard) forwards;
+}
+
+.dialog-content-enter {
+  animation: dialogContentShow var(--animation-duration-medium) var(--animation-easing-decelerate) forwards;
+}
+
+.dialog-content-exit {
+  animation: dialogContentHide var(--animation-duration-fast) var(--animation-easing-accelerate) forwards;
+}
+
+/* Dropdown Animations
+ * --------------
+ * Animations for dropdown menus and popover components
+ */
+@keyframes dropdownSlideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes dropdownSlideUp {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-10px); }
+}
+
+.dropdown-enter {
+  animation: dropdownSlideDown var(--animation-duration-fast) var(--animation-easing-decelerate) forwards;
+}
+
+.dropdown-exit {
+  animation: dropdownSlideUp var(--animation-duration-fast) var(--animation-easing-accelerate) forwards;
+}
+
+/* Loading Animations
+ * --------------
+ * Animations for loading states and spinners
+ */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Progress Animations
+ * --------------
+ * Animations for progress indicators and loading bars
+ */
+@keyframes progressLinear {
+  from { left: -40%; }
+  to { left: 100%; }
+}
+
+.progress-bar-indeterminate::before {
+  content: '';
+  position: absolute;
+  background-color: hsl(var(--primary) / 0.7);
+  width: 40%;
+  height: 100%;
+  left: -40%;
+  animation: progressLinear 2s var(--animation-easing-standard) infinite;
+}
+
+/* Transition Utilities
+ * --------------
+ * Utility classes for common CSS transitions
+ */
+.transition-all {
+  transition: all var(--animation-duration-medium) var(--animation-easing-standard);
+}
+
+.transition-colors {
+  transition: background-color var(--animation-duration-fast) var(--animation-easing-standard),
+              border-color var(--animation-duration-fast) var(--animation-easing-standard),
+              color var(--animation-duration-fast) var(--animation-easing-standard),
+              fill var(--animation-duration-fast) var(--animation-easing-standard),
+              stroke var(--animation-duration-fast) var(--animation-easing-standard);
+}
+
+.transition-opacity {
+  transition: opacity var(--animation-duration-fast) var(--animation-easing-standard);
+}
+
+.transition-transform {
+  transition: transform var(--animation-duration-medium) var(--animation-easing-standard);
+}
+
+.transition-shadow {
+  transition: box-shadow var(--animation-duration-fast) var(--animation-easing-standard);
+}
+
+/* Hover Animations
+ * --------------
+ * Animation effects for element hover states
+ */
+.hover-scale {
+  transition: transform var(--animation-duration-fast) var(--animation-easing-standard);
+}
+
+.hover-scale:hover {
+  transform: scale(1.05);
+}
+
+.hover-lift {
+  transition: transform var(--animation-duration-fast) var(--animation-easing-standard);
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+}
+
+.hover-glow {
+  transition: box-shadow var(--animation-duration-fast) var(--animation-easing-standard);
+}
+
+.hover-glow:hover {
+  box-shadow: 0 0 8px rgba(var(--primary-rgb), 0.5);
+}
+
+/* Focus Animations
+ * --------------
+ * Animation effects for element focus states
+ */
+.focus-scale {
+  transition: transform var(--animation-duration-fast) var(--animation-easing-standard);
+}
+
+.focus-scale:focus-visible {
+  transform: scale(1.05);
+}
+
+.focus-pulse {
+  transition: box-shadow var(--animation-duration-fast) var(--animation-easing-standard);
+}
+
+.focus-pulse:focus-visible {
+  box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--ring));
+}
+
+/* Page Transitions
+ * --------------
+ * Animations for page transitions and route changes
+ */
+@keyframes pageEnter {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pageExit {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(10px); }
+}
+
+.page-enter {
+  animation: pageEnter var(--animation-duration-medium) var(--animation-easing-decelerate) forwards;
+}
+
+.page-exit {
+  animation: pageExit var(--animation-duration-medium) var(--animation-easing-accelerate) forwards;
+}
+
+/* Attention Animations
+ * --------------
+ * Animations to draw user attention to specific elements
+ */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+  20%, 40%, 60%, 80% { transform: translateX(5px); }
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes flash {
+  0%, 50%, 100% { opacity: 1; }
+  25%, 75% { opacity: 0; }
+}
+
+.animate-shake {
+  animation: shake 0.8s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+.animate-bounce {
+  animation: bounce 1s infinite;
+}
+
+.animate-flash {
+  animation: flash 1s;
+}
+
+/* Form Animations
+ * --------------
+ * Animations for form elements and input interactions
+ */
+@keyframes formElementFocus {
+  0% { box-shadow: 0 0 0 0 transparent; }
+  100% { box-shadow: 0 0 0 2px hsl(var(--ring)); }
+}
+
+.form-element-focus {
+  animation: formElementFocus var(--animation-duration-fast) var(--animation-easing-standard) forwards;
+}
+
+.input-label-float {
+  transition: transform var(--animation-duration-fast) var(--animation-easing-standard),
+              font-size var(--animation-duration-fast) var(--animation-easing-standard);
+}
