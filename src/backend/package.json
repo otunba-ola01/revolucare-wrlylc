@@ -34,7 +34,7 @@
     "@googlemaps/google-maps-services-js": "^3.3.28",
     "@microsoft/microsoft-graph-client": "^3.0.5",
     "@prisma/client": "^5.0.0",
-    "@sendgrid/client": "^7.7.0",
+    "@sendgrid/client": "^8.1.4",
     "@sendgrid/mail": "^7.7.0",
     "@vercel/blob": "^0.14.0",
     "argon2": "^0.30.3",
