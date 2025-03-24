@@ -30,7 +30,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.345.0",
     "@azure/ai-form-recognizer": "^4.0.0",
-    "@azure/msal-node": "^1.17.2",
+    "@azure/msal-node": "^3.4.0",
     "@googlemaps/google-maps-services-js": "^3.3.28",
     "@microsoft/microsoft-graph-client": "^3.0.5",
     "@prisma/client": "^5.0.0",
